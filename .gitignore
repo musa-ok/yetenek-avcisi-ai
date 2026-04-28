@@ -1,0 +1,11 @@
+# Sanal ortam
+venv/
+env/
+
+# Veritabanı
+*.db
+*.sqlite3
+
+# Python önbellek dosyaları
+__pycache__/
+*.pyc
