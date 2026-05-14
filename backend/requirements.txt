@@ -1,0 +1,47 @@
+# Yetenek Avcısı Backend - Python Dependencies
+# Install: pip install -r requirements.txt
+
+# Web Framework
+fastapi==0.128.8
+uvicorn==0.39.0
+starlette==0.49.3
+python-multipart==0.0.20
+
+# Database
+SQLAlchemy==2.0.49
+alembic==1.16.5
+psycopg2-binary==2.9.12
+
+# Authentication & Security
+passlib==1.7.4
+python-jose==3.5.0
+bcrypt==5.0.0
+cryptography==48.0.0
+
+# Validation
+pydantic==2.13.4
+email-validator==2.3.0
+
+# HTTP & API Clients
+requests==2.32.5
+httpx==0.28.1
+
+# AI / ML
+google-generativeai==0.8.6
+openai==2.36.0
+
+# Cloud Storage
+boto3==1.42.97
+
+# Data Processing
+pandas==2.3.3
+numpy==2.0.2
+
+# Email
+# (built-in smtplib used)
+
+# Environment
+python-dotenv==1.2.1
+
+# Image Processing
+pillow==11.3.0

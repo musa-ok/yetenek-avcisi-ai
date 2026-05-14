@@ -1,6 +1,7 @@
 # Sanal ortam
 venv/
 env/
+.venv/
 
 # Veritabanı
 *.db
@@ -9,3 +10,20 @@ env/
 # Python önbellek dosyaları
 __pycache__/
 *.pyc
+*.pyo
+
+# Environment (GİZLİ ANAHTARLAR)
+.env
+backend/.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
+
+# Flutter
+yetenek_avcisi/.dart_tool/
+yetenek_avcisi/build/
