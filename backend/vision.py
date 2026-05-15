@@ -63,7 +63,16 @@ _ERROR_RESULT = {
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def _upload_and_wait(path: str):
     """Upload video to Gemini Files API and block until ACTIVE."""
-    file = genai.upload_file(path, mime_type='video/mp4')
+    import shutil, uuid
+    clean_path = f'/tmp/upload_{uuid.uuid4().hex}.mp4'
+    shutil.copy2(path, clean_path)
+    try:
+        file = genai.upload_file(clean_path, mime_type='video/mp4')
+    finally:
+        try:
+            os.remove(clean_path)
+        except Exception:
+            pass
     while True:
         state = genai.get_file(file.name).state.name
         if state == 'ACTIVE':
