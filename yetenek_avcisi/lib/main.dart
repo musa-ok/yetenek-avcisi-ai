@@ -804,14 +804,14 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildSocialButton(
-                  icon: Icons.apple,
+                  icon: FontAwesomeIcons.apple,
                   color: Colors.white,
                   bgColor: Colors.black,
                   onTap: () => _handleSocialLogin('apple'),
                 ),
                 const SizedBox(width: 16),
                 _buildSocialButton(
-                  icon: Icons.g_mobiledata,
+                  icon: FontAwesomeIcons.google,
                   color: Colors.black87,
                   bgColor: Colors.white,
                   isOutlined: true,
