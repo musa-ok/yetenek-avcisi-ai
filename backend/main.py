@@ -985,6 +985,22 @@ async def serve_video(filename: str, request: Request):
 SCOUT_DOCS_DIR = "static/scout_docs"
 os.makedirs(SCOUT_DOCS_DIR, exist_ok=True)
 
+# Cloudinary config
+try:
+    import cloudinary
+    import cloudinary.uploader
+    _cld_url = os.getenv("CLOUDINARY_URL", "")
+    if _cld_url:
+        cloudinary.config(cloudinary_url=_cld_url)
+        _use_cloudinary = True
+        print("[STORAGE] Cloudinary aktif")
+    else:
+        _use_cloudinary = False
+        print("[STORAGE] Cloudinary URL yok, local storage kullanılıyor")
+except ImportError:
+    _use_cloudinary = False
+    print("[STORAGE] cloudinary paketi yok, local storage kullanılıyor")
+
 
 @app.post("/upload-document", tags=["Scout Approval"])
 def upload_scout_document(
@@ -1006,12 +1022,23 @@ def upload_scout_document(
 
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "bin"
     filename = f"{uuid.uuid4()}.{ext}"
-    dest = os.path.join(SCOUT_DOCS_DIR, filename)
 
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    file_bytes = file.file.read()
 
-    doc_url = f"/static/scout_docs/{filename}"
+    if _use_cloudinary:
+        import cloudinary.uploader, io
+        resource_type = "raw" if ext == "pdf" else "image"
+        result = cloudinary.uploader.upload(
+            io.BytesIO(file_bytes),
+            public_id=f"scout_docs/{filename}",
+            resource_type=resource_type,
+        )
+        doc_url = result["secure_url"]
+    else:
+        dest = os.path.join(SCOUT_DOCS_DIR, filename)
+        with open(dest, "wb") as f:
+            f.write(file_bytes)
+        doc_url = f"/static/scout_docs/{filename}"
     db.query(models.User).filter(models.User.id == current_user.id).update(
         {"scout_document_url": doc_url},
         synchronize_session=False,
