@@ -888,22 +888,10 @@ def finalize_multivideo_player(player_id: int, db: Session = Depends(get_db)):
     is_low = ai.get('overall_rating', 0) <= 35
 
     if is_mismatch or is_low:
-        skill_fields = [
-            'pace', 'finishing', 'passing', 'dribbling', 'defending', 'strength',
-            'technical_ability', 'physical_attributes', 'tactical_awareness', 'mental_attributes',
-        ]
-        player.skill_scores = {f: 0 for f in skill_fields}
-        player.overall_rating = 0
-        player.ai_summary_report = ai.get('ai_scout_report', '⚠️ HATA: Uyumsuz video.')
-        player.ai_strengths = ["Hata: Uyumsuz Video Tespit Edildi"]
-        player.ai_improvements = ["Lütfen seçtiğiniz mevkiye uygun futbol videoları yükleyin."]
-
-        flag_modified(player, 'skill_scores')
-        flag_modified(player, 'ai_strengths')
-        flag_modified(player, 'ai_improvements')
-        
+        error_report = ai.get('ai_scout_report', '⚠️ HATA: Uyumsuz video.')
+        db.delete(player)
         db.commit()
-        return {"message": "Analiz tamamlandı (Uyumsuz Video)", "player": player.to_dict()}
+        return {"message": "Analiz başarısız: Uyumsuz veya geçersiz video.", "error": error_report, "deleted": True}
 
     # ── 4. Sonuçları kaydet (NORMAL SENARYO) ───────────────────────────────────
     skill_fields = [

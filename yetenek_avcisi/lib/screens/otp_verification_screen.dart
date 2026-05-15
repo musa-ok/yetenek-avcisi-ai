@@ -102,7 +102,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       }
     } on ApiException catch (e) {
       debugPrint('[OTP] Gönderim hatası: ${e.message}');
-      if (mounted) setState(() => _errorMessage = e.message);
+      if (mounted) {
+        final msg = e.message.toLowerCase();
+        if (msg.contains('zaten doğrulanmış') || msg.contains('already verified')) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            (route) => false,
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Hesabınız zaten doğrulanmış. Giriş yapabilirsiniz.'),
+              backgroundColor: kPitchGreen,
+            ),
+          );
+        } else {
+          setState(() => _errorMessage = e.message);
+        }
+      }
     } catch (e) {
       debugPrint('[OTP] Gönderim hatası: $e');
       if (mounted) setState(() => _errorMessage = 'Kod gönderilirken hata oluştu');
@@ -161,7 +177,21 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       );
     } on ApiException catch (e) {
       if (mounted) {
-        setState(() => _errorMessage = e.message);
+        final msg = e.message.toLowerCase();
+        if (msg.contains('zaten doğrulanmış') || msg.contains('already verified')) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            (route) => false,
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Hesabınız zaten doğrulanmış. Giriş yapabilirsiniz.'),
+              backgroundColor: kPitchGreen,
+            ),
+          );
+        } else {
+          setState(() => _errorMessage = e.message);
+        }
       }
     } catch (e) {
       if (mounted) {

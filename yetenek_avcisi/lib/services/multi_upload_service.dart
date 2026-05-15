@@ -302,6 +302,9 @@ class MultiUploadService {
     }
 
     final data = json.decode(response.body);
+    if (data['deleted'] == true) {
+      throw Exception(data['error'] ?? 'Uyumsuz veya geçersiz video. Lütfen doğru mevki videolarını yükleyin.');
+    }
     return MultiVideoPlayer.fromJson(data['player']);
   }
 

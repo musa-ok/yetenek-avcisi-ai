@@ -1186,12 +1186,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
           );
         }
       } else if (provider == 'apple') {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Apple ile giriş yakında aktif edilecek'),
-            backgroundColor: Colors.orangeAccent,
-          ),
+        final credential = await SignInWithApple.getAppleIDCredential(
+          scopes: [
+            AppleIDAuthorizationScopes.email,
+            AppleIDAuthorizationScopes.fullName,
+          ],
         );
+
+        final appleEmail = credential.email ?? '${credential.userIdentifier}@privaterelay.appleid.com';
+        final firstName = credential.givenName ?? '';
+        final lastName = credential.familyName ?? '';
+        final appleFullName = '${firstName} ${lastName}'.trim().isNotEmpty
+            ? '${firstName} ${lastName}'.trim()
+            : appleEmail.split('@').first;
+        final appleProviderId = credential.userIdentifier ?? '';
+
+        if (!mounted) return;
+
+        final result = await BackendApi.socialLogin(
+          provider: 'apple',
+          email: appleEmail,
+          fullName: appleFullName,
+          providerId: appleProviderId,
+        );
+
+        if (!mounted) return;
+
+        if (result.isComplete && result.session != null) {
+          await SessionStore.save(result.session!);
+          currentAccessTokenNotifier.value = result.session!.accessToken;
+          currentUserNotifier.value = result.session!.user;
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const SessionRouter()),
+              (route) => false,
+            );
+          }
+        } else if (result.isIncomplete) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CompleteProfileScreen(
+                email: appleEmail,
+                fullName: appleFullName,
+                provider: 'apple',
+                providerId: appleProviderId,
+              ),
+            ),
+          );
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Sunucudan beklenmeyen bir yanıt geldi.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint('[REGISTER SOCIAL] ERROR: $e');
