@@ -3,19 +3,53 @@ Email Service for Yetenek Avcısı
 Handles approval notifications and system emails
 """
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import json
+import urllib.request
+import urllib.error
+# import smtplib  # SMTP - Render'da çalışmıyor (outbound port blok)
+# from email.mime.text import MIMEText
+# from email.mime.multipart import MIMEMultipart
 from typing import Optional
 import logging
 
 # Load credentials from environment
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "info.yetenekavcisi@gmail.com")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")  # SMTP için (şu an kullanılmıyor)
+# SMTP_HOST = "smtp.gmail.com"  # SMTP - Render'da çalışmıyor
+# SMTP_PORT = 587
+
+# Resend API (HTTP tabanlı - Render'da çalışır)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM = "Yetenek Avcısı <onboarding@resend.dev>"
 
 logger = logging.getLogger(__name__)
+
+
+def _send_via_resend(to_email: str, subject: str, html_body: str) -> bool:
+    """Resend HTTP API ile email gönder"""
+    try:
+        payload = json.dumps({
+            "from": RESEND_FROM,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_body,
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            logger.info(f"✅ Resend email sent to {to_email}: {resp.status}")
+            return True
+    except Exception as e:
+        logger.error(f"❌ Failed to send Resend email: {e}")
+        return False
 
 
 def send_approval_email(user_email: str, user_name: str) -> bool:
@@ -30,11 +64,7 @@ def send_approval_email(user_email: str, user_name: str) -> bool:
         bool: True if email sent successfully, False otherwise
     """
     try:
-        # Create message
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "🎉 Tebrikler! Scout Onayınız Tamamlandı - Yetenek Avcısı"
-        msg["From"] = f"Yetenek Avcısı <{SENDER_EMAIL}>"
-        msg["To"] = user_email
+        subject = "🎉 Tebrikler! Scout Onayınız Tamamlandı - Yetenek Avcısı"
 
         # Professional HTML email template
         html_body = f"""
@@ -116,18 +146,14 @@ def send_approval_email(user_email: str, user_name: str) -> bool:
         Yetenek Avcısı Ekibi
         """
 
-        # Attach both versions
-        msg.attach(MIMEText(text_body, "plain", "utf-8"))
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
+        # Send email via Resend
+        return _send_via_resend(user_email, subject, html_body)
 
-        # Send email via SMTP
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, user_email, msg.as_string())
-
-        logger.info(f"✅ Approval email sent successfully to {user_email}")
-        return True
+        # --- SMTP (Render'da çalışmıyor - ilerisi için) ---
+        # with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        #     server.starttls()
+        #     server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        #     server.sendmail(SENDER_EMAIL, user_email, msg.as_string())
 
     except Exception as e:
         logger.error(f"❌ Failed to send approval email to {user_email}: {str(e)}")
@@ -147,11 +173,7 @@ def send_pending_notification_to_admin(user_name: str, user_email: str) -> bool:
     """
     try:
         admin_email = SENDER_EMAIL  # Send to same email for now
-        
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"🔔 Yeni Scout Onay Bekliyor - {user_name}"
-        msg["From"] = f"Yetenek Avcısı Sistemi <{SENDER_EMAIL}>"
-        msg["To"] = admin_email
+        subject = f"🔔 Yeni Scout Onay Bekliyor - {user_name}"
 
         html_body = f"""
         <!DOCTYPE html>
@@ -188,15 +210,14 @@ def send_pending_notification_to_admin(user_name: str, user_email: str) -> bool:
         </html>
         """
 
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
+        # Send via Resend
+        return _send_via_resend(admin_email, subject, html_body)
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, admin_email, msg.as_string())
-
-        logger.info(f"✅ Admin notification sent for pending scout: {user_email}")
-        return True
+        # --- SMTP (Render'da çalışmıyor - ilerisi için) ---
+        # with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        #     server.starttls()
+        #     server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        #     server.sendmail(SENDER_EMAIL, admin_email, msg.as_string())
 
     except Exception as e:
         logger.error(f"❌ Failed to send admin notification: {str(e)}")
@@ -208,10 +229,7 @@ def send_otp_email(email: str, otp_code: str) -> bool:
     Kullanıcı kayıt olduğunda OTP kodu gönderir
     """
     try:
-        msg = MIMEMultipart()
-        msg["From"] = SENDER_EMAIL
-        msg["To"] = email
-        msg["Subject"] = "Yetenek Avcısı - E-posta Doğrulama Kodunuz"
+        subject = "Yetenek Avcısı - E-posta Doğrulama Kodunuz"
 
         html_body = f"""
         <!DOCTYPE html>
@@ -290,15 +308,14 @@ def send_otp_email(email: str, otp_code: str) -> bool:
         </html>
         """
 
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
+        # Send via Resend
+        return _send_via_resend(email, subject, html_body)
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, email, msg.as_string())
-
-        logger.info(f"✅ OTP email sent to: {email}")
-        return True
+        # --- SMTP (Render'da çalışmıyor - ilerisi için) ---
+        # with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        #     server.starttls()
+        #     server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        #     server.sendmail(SENDER_EMAIL, email, msg.as_string())
 
     except Exception as e:
         logger.error(f"❌ Failed to send OTP email: {str(e)}")
