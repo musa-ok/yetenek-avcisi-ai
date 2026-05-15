@@ -5,7 +5,7 @@ class AppConstants {
   // Physical Device: http://<YOUR_MAC_IP>:8000
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://1.1.13.182:8000', // Mac IP for physical device
+    defaultValue: 'https://yetenek-avcisi-ai.onrender.com', // Production: Render
   );
   
   // Routes

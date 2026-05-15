@@ -11,7 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 /// Physical Device: http://<YOUR_MAC_IP>:8000 (e.g., http://1.1.13.182:8000)
 const String kApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://127.0.0.1:8000', // iOS Simulator: localhost, Physical: Mac IP
+  defaultValue: 'https://yetenek-avcisi-ai.onrender.com', // Production: Render
 );
 
 final ValueNotifier<AuthenticatedUser?> currentUserNotifier =
