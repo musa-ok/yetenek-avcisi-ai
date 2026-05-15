@@ -3,24 +3,26 @@ Email Service for Yetenek Avcısı
 Handles approval notifications and system emails
 """
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-# import json  # Resend HTTP - şu an kullanılmıyor
-# import urllib.request  # Resend HTTP - şu an kullanılmıyor
+import json
+import urllib.request
+# import smtplib  # SMTP - Render'da outbound port bloklı
+# from email.mime.text import MIMEText
+# from email.mime.multipart import MIMEMultipart
 from typing import Optional
 import logging
 
-# Brevo SMTP (Render'da çalışır - güvenilir relay)
-BREVO_SMTP_LOGIN = os.getenv("BREVO_SMTP_LOGIN", "ab712f001@smtp-brevo.com")
-BREVO_SMTP_KEY = os.getenv("BREVO_SMTP_KEY", "")
-BREVO_SMTP_HOST = "smtp-relay.brevo.com"
-BREVO_SMTP_PORT = 587
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "info.yetenekavcisi@gmail.com")
 
-# Resend API - şu an kullanılmıyor (domain doğrulaması gerekiyor)
+# Brevo HTTP API (port 443 - Render'da çalışır)
+BREVO_API_KEY = os.getenv("BREVO_SMTP_KEY", "")  # aynı key, HTTP API için
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SMTP_LOGIN", "ab712f001@smtp-brevo.com")
+
+# Brevo SMTP - Render'da outbound port bloklı
+# BREVO_SMTP_HOST = "smtp-relay.brevo.com"
+# BREVO_SMTP_PORT = 587
+
+# Resend API - domain doğrulaması gerekiyor
 # RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-# RESEND_FROM = os.getenv("RESEND_FROM", "Yetenek Avcısı <onboarding@resend.dev>")
 
 # Gmail SMTP - Render'da outbound port bloklı
 # SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
@@ -31,23 +33,30 @@ logger = logging.getLogger(__name__)
 
 
 def _send_via_brevo(to_email: str, subject: str, html_body: str) -> bool:
-    """Brevo SMTP relay ile email gönder"""
+    """Brevo HTTP API ile email gönder (port 443)"""
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"Yetenek Avcısı <{BREVO_SMTP_LOGIN}>"
-        msg["To"] = to_email
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
+        payload = json.dumps({
+            "sender": {"name": "Yetenek Avcısı", "email": BREVO_SENDER_EMAIL},
+            "to": [{"email": to_email}],
+            "subject": subject,
+            "htmlContent": html_body,
+        }).encode("utf-8")
 
-        with smtplib.SMTP(BREVO_SMTP_HOST, BREVO_SMTP_PORT) as server:
-            server.starttls()
-            server.login(BREVO_SMTP_LOGIN, BREVO_SMTP_KEY)
-            server.sendmail(BREVO_SMTP_LOGIN, to_email, msg.as_string())
-
-        logger.info(f"✅ Brevo email sent to {to_email}")
-        return True
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=payload,
+            headers={
+                "api-key": BREVO_API_KEY,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            logger.info(f"✅ Brevo HTTP email sent to {to_email}: {resp.status}")
+            return True
     except Exception as e:
-        logger.error(f"❌ Failed to send Brevo email: {e}")
+        logger.error(f"❌ Failed to send Brevo HTTP email: {e}")
         return False
 
 
