@@ -1088,3 +1088,25 @@ def approve_scout(
         "user_id": user_id,
         "email_sent": email_sent
     }
+
+
+# ── SETUP: Admin kullanıcı oluştur (bir kez çalıştır) ─────────────────────────
+@app.post("/setup/create-admin")
+def create_admin(db: Session = Depends(get_db)):
+    from auth import get_password_hash
+    existing = db.query(models.User).filter(models.User.email == "info.yetenekavcisi@gmail.com").first()
+    if existing:
+        existing.role = "admin"
+        existing.is_verified = True
+        db.commit()
+        return {"message": "Mevcut kullanici admin yapildi", "email": existing.email}
+    admin = models.User(
+        email="info.yetenekavcisi@gmail.com",
+        hashed_password=get_password_hash("Admin123!"),
+        role="admin",
+        full_name="Admin",
+        is_verified=True,
+    )
+    db.add(admin)
+    db.commit()
+    return {"message": "Admin olusturuldu", "email": "info.yetenekavcisi@gmail.com"}
