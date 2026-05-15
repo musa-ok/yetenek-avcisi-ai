@@ -3,52 +3,51 @@ Email Service for Yetenek Avcısı
 Handles approval notifications and system emails
 """
 import os
-import json
-import urllib.request
-import urllib.error
-# import smtplib  # SMTP - Render'da çalışmıyor (outbound port blok)
-# from email.mime.text import MIMEText
-# from email.mime.multipart import MIMEMultipart
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+# import json  # Resend HTTP - şu an kullanılmıyor
+# import urllib.request  # Resend HTTP - şu an kullanılmıyor
 from typing import Optional
 import logging
 
-# Load credentials from environment
+# Brevo SMTP (Render'da çalışır - güvenilir relay)
+BREVO_SMTP_LOGIN = os.getenv("BREVO_SMTP_LOGIN", "ab712f001@smtp-brevo.com")
+BREVO_SMTP_KEY = os.getenv("BREVO_SMTP_KEY", "")
+BREVO_SMTP_HOST = "smtp-relay.brevo.com"
+BREVO_SMTP_PORT = 587
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "info.yetenekavcisi@gmail.com")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")  # SMTP için (şu an kullanılmıyor)
-# SMTP_HOST = "smtp.gmail.com"  # SMTP - Render'da çalışmıyor
-# SMTP_PORT = 587
 
-# Resend API (HTTP tabanlı - Render'da çalışır)
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM = "Yetenek Avcısı <onboarding@resend.dev>"
+# Resend API - şu an kullanılmıyor (domain doğrulaması gerekiyor)
+# RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+# RESEND_FROM = os.getenv("RESEND_FROM", "Yetenek Avcısı <onboarding@resend.dev>")
+
+# Gmail SMTP - Render'da outbound port bloklı
+# SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
+# SMTP_HOST = "smtp.gmail.com"
+# SMTP_PORT = 587
 
 logger = logging.getLogger(__name__)
 
 
-def _send_via_resend(to_email: str, subject: str, html_body: str) -> bool:
-    """Resend HTTP API ile email gönder"""
+def _send_via_brevo(to_email: str, subject: str, html_body: str) -> bool:
+    """Brevo SMTP relay ile email gönder"""
     try:
-        payload = json.dumps({
-            "from": RESEND_FROM,
-            "to": [to_email],
-            "subject": subject,
-            "html": html_body,
-        }).encode("utf-8")
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"Yetenek Avcısı <{BREVO_SMTP_LOGIN}>"
+        msg["To"] = to_email
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-        req = urllib.request.Request(
-            "https://api.resend.com/emails",
-            data=payload,
-            headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            logger.info(f"✅ Resend email sent to {to_email}: {resp.status}")
-            return True
+        with smtplib.SMTP(BREVO_SMTP_HOST, BREVO_SMTP_PORT) as server:
+            server.starttls()
+            server.login(BREVO_SMTP_LOGIN, BREVO_SMTP_KEY)
+            server.sendmail(BREVO_SMTP_LOGIN, to_email, msg.as_string())
+
+        logger.info(f"✅ Brevo email sent to {to_email}")
+        return True
     except Exception as e:
-        logger.error(f"❌ Failed to send Resend email: {e}")
+        logger.error(f"❌ Failed to send Brevo email: {e}")
         return False
 
 
@@ -146,8 +145,7 @@ def send_approval_email(user_email: str, user_name: str) -> bool:
         Yetenek Avcısı Ekibi
         """
 
-        # Send email via Resend
-        return _send_via_resend(user_email, subject, html_body)
+        return _send_via_brevo(user_email, subject, html_body)
 
         # --- SMTP (Render'da çalışmıyor - ilerisi için) ---
         # with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
@@ -210,8 +208,7 @@ def send_pending_notification_to_admin(user_name: str, user_email: str) -> bool:
         </html>
         """
 
-        # Send via Resend
-        return _send_via_resend(admin_email, subject, html_body)
+        return _send_via_brevo(admin_email, subject, html_body)
 
         # --- SMTP (Render'da çalışmıyor - ilerisi için) ---
         # with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
@@ -308,8 +305,7 @@ def send_otp_email(email: str, otp_code: str) -> bool:
         </html>
         """
 
-        # Send via Resend
-        return _send_via_resend(email, subject, html_body)
+        return _send_via_brevo(email, subject, html_body)
 
         # --- SMTP (Render'da çalışmıyor - ilerisi için) ---
         # with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
