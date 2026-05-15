@@ -511,7 +511,7 @@ class BackendApi {
     // YENİ ENDPOINT: /auth/register
     final res = await http
         .post(_uri('/auth/register'), headers: _jsonHeaders(), body: body)
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 90));
 
     if (res.statusCode >= 200 && res.statusCode < 300) {
       final decoded = json.decode(res.body);
@@ -532,7 +532,7 @@ class BackendApi {
     // YENİ ENDPOINT: /auth/login
     final res = await http
         .post(_uri('/auth/login'), headers: _jsonHeaders(), body: body)
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 90));
 
     if (res.statusCode == 403) {
       // Doğrulanmamış kullanıcı
