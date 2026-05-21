@@ -11,6 +11,9 @@ from auth import get_password_hash, verify_password, create_access_token
 from email_service import send_otp_email
 import random
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Authentication"])  # Prefix main.py'de tanımlı
 
@@ -133,7 +136,8 @@ def resend_otp(payload: dict, db: Session = Depends(get_db)):
 
     code = generate_otp()
     store_otp_db(user, code, db)
-    send_otp_email(email, code)
+    sent = send_otp_email(email, code)
+    logger.info(f"[RESEND-OTP] Email gönderim sonucu ({email}): {sent}")
 
     return {"message": "Yeni doğrulama kodu gönderildi.", "email": email}
 
@@ -332,5 +336,45 @@ def social_register(payload: dict, db: Session = Depends(get_db)):
             "full_name": user.full_name,
             "role": user.role,
             "is_verified": True
+        }
+    }
+
+
+@router.post("/admin/force-verify")
+def admin_force_verify(payload: dict, db: Session = Depends(get_db)):
+    """
+    ADMIN: Kullanıcıyı zorla doğrula (OTP bypass)
+    Sadece ADMIN_SECRET key ile kullanılabilir
+    """
+    secret = payload.get("secret", "")
+    email = payload.get("email", "").strip().lower()
+    role = payload.get("role", "").strip()
+
+    import os
+    admin_secret = os.getenv("ADMIN_SECRET", "YetenekAdmin2025!")
+    if secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Yetkisiz erişim.")
+
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+
+    user.is_verified = True
+    user.is_profile_complete = True
+    if role:
+        user.role = role
+    db.commit()
+    db.refresh(user)
+
+    token = create_access_token({"sub": str(user.id), "email": user.email})
+    return {
+        "message": f"{email} doğrulandı.",
+        "access_token": token,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "is_verified": True,
         }
     }

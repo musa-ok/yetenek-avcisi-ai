@@ -36,7 +36,7 @@ def _send_via_brevo(to_email: str, subject: str, html_body: str) -> bool:
     """Brevo HTTP API ile email gönder (port 443)"""
     try:
         payload = json.dumps({
-            "sender": {"name": "Yetenek Avcısı", "email": BREVO_SENDER_EMAIL},
+            "sender": {"name": "Yetenek Avcısı", "email": SENDER_EMAIL},
             "to": [{"email": to_email}],
             "subject": subject,
             "htmlContent": html_body,
