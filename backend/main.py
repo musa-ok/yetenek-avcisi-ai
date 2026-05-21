@@ -1189,19 +1189,14 @@ def create_test_users(db: Session = Depends(get_db)):
 
 @app.post("/setup/clean-duplicate-players")
 def clean_duplicate_players(db: Session = Depends(get_db)):
-    from sqlalchemy import func
-    duplicates = (
-        db.query(models.Player.user_id, func.min(models.Player.id).label("keep_id"))
-        .group_by(models.Player.user_id)
-        .having(func.count(models.Player.id) > 1)
-        .all()
-    )
+    all_players = db.query(models.Player).order_by(models.Player.user_id, models.Player.id).all()
+    seen = {}
     deleted = 0
-    for dup in duplicates:
-        db.query(models.Player).filter(
-            models.Player.user_id == dup.user_id,
-            models.Player.id != dup.keep_id
-        ).delete()
-        deleted += 1
+    for p in all_players:
+        if p.user_id in seen:
+            db.delete(p)
+            deleted += 1
+        else:
+            seen[p.user_id] = p.id
     db.commit()
     return {"message": f"{deleted} duplicate temizlendi"}
