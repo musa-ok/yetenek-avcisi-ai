@@ -184,7 +184,10 @@ def verify_otp(payload: dict, db: Session = Depends(get_db)):
             "email": user.email,
             "full_name": user.full_name,
             "role": user.role,
-            "is_verified": user.is_verified
+            "is_verified": user.is_verified,
+            "phone_number": user.phone_number,
+            "birth_date": user.birth_date.isoformat() if user.birth_date else None,
+            "profile_image_url": user.profile_image_url,
         }
     }
 
@@ -216,7 +219,10 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
             "email": user.email,
             "full_name": user.full_name,
             "role": user.role,
-            "is_verified": user.is_verified
+            "is_verified": user.is_verified,
+            "phone_number": user.phone_number,
+            "birth_date": user.birth_date.isoformat() if user.birth_date else None,
+            "profile_image_url": user.profile_image_url,
         }
     }
 
