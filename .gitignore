@@ -2,6 +2,7 @@
 venv/
 env/
 .venv/
+.env/
 
 # Veritabanı
 *.db
@@ -15,6 +16,14 @@ __pycache__/
 # Environment (GİZLİ ANAHTARLAR)
 .env
 backend/.env
+*.env
+
+# Büyük medya dosyaları
+static/videos/
+backend/static/videos/
+*.mp4
+*.mov
+*.avi
 
 # IDE
 .idea/
