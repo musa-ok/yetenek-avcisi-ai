@@ -246,7 +246,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             onPressed: () => _showExitConfirmDialog(context),
           ),
         ),
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
         child: Padding(
           padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24),
           child: Column(
@@ -398,6 +400,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),    // PopScope kapanışı
     ));    // return kapanışı

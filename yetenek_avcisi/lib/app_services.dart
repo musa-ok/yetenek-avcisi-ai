@@ -11,7 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 /// Physical Device: http://<YOUR_MAC_IP>:8000 (e.g., http://1.1.13.182:8000)
 const String kApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://yetenek-avcisi-ai.onrender.com', // Production: Render
+  defaultValue: 'https://stingray-app-g3o9y.ondigitalocean.app', // Production: DigitalOcean
 );
 
 final ValueNotifier<AuthenticatedUser?> currentUserNotifier =

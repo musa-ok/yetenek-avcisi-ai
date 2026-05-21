@@ -259,11 +259,17 @@ class MultiUploadService {
     required int slot,
     required String skillName,
     required File videoFile,
+    String? accessToken,
   }) async {
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('$_baseUrl/players/multivideo/$playerId/upload-slot-$slot'),
     );
+
+    final token = accessToken ?? currentAccessTokenNotifier.value;
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
 
     request.fields['skill_name'] = skillName;
     

@@ -133,7 +133,9 @@ class _MyInfoScreenState extends State<MyInfoScreen> {
         elevation: 0,
         iconTheme: IconThemeData(color: AppColors.textPrimary),
       ),
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(24),
           child: Column(
@@ -217,6 +219,7 @@ class _MyInfoScreenState extends State<MyInfoScreen> {
               SizedBox(height: 24),
             ],
           ),
+        ),
         ),
       ),
     );

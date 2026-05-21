@@ -22,10 +22,41 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.205838843244-fvd7tqaq952gj7nmi7ffga5243chlilf</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>205838843244-fvd7tqaq952gj7nmi7ffga5243chlilf.apps.googleusercontent.com</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+		<string>https</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Oyuncu analizi için video çekerken kameranızı kullanmamız gerekiyor.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Videoları sesli kaydetmek için mikrofon izni gerekiyor.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Yapay zeka analizi için galerinizden video seçmeniz gerekiyor.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -65,37 +96,6 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>NSCameraUsageDescription</key>
-<string>Oyuncu analizi için video çekerken kameranızı kullanmamız gerekiyor.</string>
-<key>NSPhotoLibraryUsageDescription</key>
-<string>Yapay zeka analizi için galerinizden video seçmeniz gerekiyor.</string>
-<key>NSMicrophoneUsageDescription</key>
-<string>Videoları sesli kaydetmek için mikrofon izni gerekiyor.</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
-	<key>LSApplicationQueriesSchemes</key>
-	<array>
-		<string>whatsapp</string>
-		<string>https</string>
-	</array>
-	<key>GIDClientID</key>
-	<string>205838843244-fvd7tqaq952gj7nmi7ffga5243chlilf.apps.googleusercontent.com</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.205838843244-fvd7tqaq952gj7nmi7ffga5243chlilf</string>
-			</array>
-		</dict>
 	</array>
 </dict>
 </plist>

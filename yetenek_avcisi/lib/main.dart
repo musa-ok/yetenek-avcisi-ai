@@ -414,6 +414,15 @@ class SessionRouter extends StatelessWidget {
         final user = currentUserNotifier.value;
         if (user == null) return const LoginScreen();
         
+        // Doğrulanmamış kullanıcı → OTP ekranına yönlendir
+        if (!user.isVerified) {
+          return OtpVerificationScreen(
+            email: user.email ?? '',
+            isSocialLogin: false,
+            autoResendOnLoad: false,
+          );
+        }
+
         final role = (user.role ?? '').toLowerCase().trim();
         
         // Admin -> Admin Panel
@@ -708,7 +717,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final l = L10nScope.of(context);
 
     return Scaffold(
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(),
           padding: EdgeInsets.fromLTRB(horizontal, 24, horizontal, 24),
@@ -848,6 +859,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -1294,7 +1306,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final l = L10nScope.of(context);
 
     return Scaffold(
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(),
           padding: EdgeInsets.fromLTRB(horizontal, 24, horizontal, 24),
@@ -1605,6 +1619,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart';
 import '../app_services.dart';
 
 /// Admin Panel Screen - Pending Scout Approval Management
@@ -103,7 +104,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   /// Open document URL
-  void _openDocument(String? documentUrl) {
+  Future<void> _openDocument(String? documentUrl) async {
     if (documentUrl == null || documentUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -113,23 +114,22 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       );
       return;
     }
-    // Launch URL (simplified - you can add url_launcher package for full implementation)
-    final fullUrl = documentUrl.startsWith('http') 
-        ? documentUrl 
+    final fullUrl = documentUrl.startsWith('http')
+        ? documentUrl
         : '$kApiBaseUrl$documentUrl';
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Belge: $fullUrl'),
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'Kopyala',
-          onPressed: () {
-            // Copy to clipboard functionality can be added here
-          },
-        ),
-      ),
-    );
+    final uri = Uri.parse(fullUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Belge açılamadı: $fullUrl'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

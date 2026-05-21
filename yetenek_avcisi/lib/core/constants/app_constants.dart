@@ -5,7 +5,7 @@ class AppConstants {
   // Physical Device: http://<YOUR_MAC_IP>:8000
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://yetenek-avcisi-ai.onrender.com', // Production: Render
+    defaultValue: 'https://stingray-app-g3o9y.ondigitalocean.app', // Production: DigitalOcean
   );
   
   // Routes

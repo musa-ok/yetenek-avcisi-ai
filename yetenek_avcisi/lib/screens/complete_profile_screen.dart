@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../app_services.dart';
-import 'otp_verification_screen.dart';
+import '../main.dart';
 
 // Premium Dark Theme renkleri - Ana uygulama ile uyumlu
 const Color kScaffoldDark = Color(0xFF0B0F19);
@@ -42,6 +42,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   void dispose() {
     _phoneController.dispose();
     super.dispose();
+  }
+
+  /// Apple relay mail'i isim olarak kullanmayı engeller
+  String _displayName(String fullName, String email) {
+    if (fullName.isEmpty || email.contains('privaterelay.appleid.com') && fullName == email.split('@').first) {
+      return 'Apple hesabınız';
+    }
+    return fullName;
   }
 
   int _calculateAge(DateTime birthDate) {
@@ -106,7 +114,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       // Scout seçildiğinde pending_scout olarak kaydol (admin onayı gerekli)
       final roleToSend = _selectedRole == 'Scout' ? 'pending_scout' : _selectedRole;
       
-      final result = await BackendApi.socialRegister(
+      final session = await BackendApi.socialRegister(
         email: widget.email,
         fullName: widget.fullName,
         phoneNumber: phone,
@@ -118,19 +126,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
       if (!mounted) return;
 
-      // Profil tamamlandı, şimdi OTP doğrulama ekranına git
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => OtpVerificationScreen(
-            email: widget.email,
-            isSocialLogin: true,
-            onVerificationComplete: () {
-              // OTP doğrulandıktan sonra ana sayfaya yönlendir
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-          ),
-        ),
+      // Sosyal giriş zaten doğrulanmış → OTP gerekmez, direkt oturum aç
+      await SessionStore.save(session);
+      currentAccessTokenNotifier.value = session.accessToken;
+      currentUserNotifier.value = session.user;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SessionRouter()),
+        (route) => false,
       );
     } on ApiException catch (e) {
       if (mounted) {
@@ -168,6 +171,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         ),
       ),
       body: SafeArea(
+        child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
         child: ListView(
           physics: const BouncingScrollPhysics(),
           padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24),
@@ -189,7 +194,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             
             // Açıklama
             Text(
-              '${widget.fullName} olarak ${widget.provider.toUpperCase()} ile giriş yaptınız. Kaydı tamamlamak için son birkaç bilgiye ihtiyacımız var.',
+              '${_displayName(widget.fullName, widget.email)} olarak ${widget.provider.toUpperCase()} ile giriş yaptınız. Kaydı tamamlamak için son birkaç bilgiye ihtiyacımız var.',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 15,
@@ -212,7 +217,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      widget.email,
+                      widget.email.contains('privaterelay.appleid.com')
+                          ? 'Apple gizli e-posta (doğrulandı)'
+                          : widget.email,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 15,
@@ -241,6 +248,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             _buildSubmitButton(),
           ],
         ),
+      ),
       ),
     );
   }

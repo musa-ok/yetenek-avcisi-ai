@@ -229,16 +229,6 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
             SizedBox(height: 20),
             Text(widget.player.name.toUpperCase(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)),
             SizedBox(height: 24),
-            // DEBUG: Değerleri ekranda göster
-            Container(
-              padding: EdgeInsets.all(8),
-              color: Colors.red.withOpacity(0.3),
-              child: Text(
-                'DEBUG: pace=${widget.player.pace} fin=${widget.player.finishing} pas=${widget.player.passing} dri=${widget.player.dribbling} def=${widget.player.defending} phy=${widget.player.strength}',
-                style: TextStyle(color: Colors.white, fontSize: 10),
-                textAlign: TextAlign.center,
-              ),
-            ),
             SizedBox(height: 8),
             GridView.builder(
               shrinkWrap: true,

@@ -67,7 +67,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
@@ -151,6 +153,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -253,7 +256,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           children: [
@@ -390,6 +395,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             const SizedBox(height: 24),
           ],
         ),
+      ),
       ),
     );
   }
