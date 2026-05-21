@@ -41,6 +41,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone_number: Optional[str] = None
     profile_image_url: Optional[str] = None
+    birth_date: Optional[str] = None
 
 
 class Token(BaseModel):

@@ -419,6 +419,12 @@ def update_me(
             current_user.email = new_email
     if user_update.profile_image_url is not None:
         current_user.profile_image_url = user_update.profile_image_url.strip()
+    if user_update.birth_date is not None:
+        try:
+            from datetime import date
+            current_user.birth_date = date.fromisoformat(user_update.birth_date[:10])
+        except Exception:
+            pass
     
     db.commit()
     db.refresh(current_user)

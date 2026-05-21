@@ -6854,10 +6854,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         fullName: _fullNameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         profileImageUrl: profileImageUrl,
+        birthDate: _birthDate?.toIso8601String(),
       );
 
-      // Global state'i güncelle
+      // Global state'i güncelle ve kalıcı olarak kaydet
       currentUserNotifier.value = updatedUser;
+      final savedToken = currentAccessTokenNotifier.value ?? '';
+      await SessionStore.save(AuthSession(accessToken: savedToken, user: updatedUser));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

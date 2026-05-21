@@ -723,12 +723,14 @@ class BackendApi {
     String? email,
     String? phoneNumber,
     String? profileImageUrl,
+    String? birthDate,
   }) async {
     final body = <String, dynamic>{};
     if (fullName != null) body['full_name'] = fullName;
     if (email != null) body['email'] = email;
     if (phoneNumber != null) body['phone_number'] = phoneNumber;
     if (profileImageUrl != null) body['profile_image_url'] = profileImageUrl;
+    if (birthDate != null) body['birth_date'] = birthDate;
 
     final res = await http.put(
       _uri('/me'),
