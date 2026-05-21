@@ -378,3 +378,20 @@ def admin_force_verify(payload: dict, db: Session = Depends(get_db)):
             "is_verified": True,
         }
     }
+
+
+@router.post("/admin/delete-user")
+def admin_delete_user(payload: dict, db: Session = Depends(get_db)):
+    """ADMIN: Kullanıcıyı sil"""
+    import os
+    secret = payload.get("secret", "")
+    email = payload.get("email", "").strip().lower()
+    admin_secret = os.getenv("ADMIN_SECRET", "YetenekAdmin2025!")
+    if secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Yetkisiz erişim.")
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+    db.delete(user)
+    db.commit()
+    return {"message": f"{email} silindi."}
