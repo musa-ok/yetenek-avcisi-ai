@@ -1137,3 +1137,42 @@ def create_admin(db: Session = Depends(get_db)):
     db.add(admin)
     db.commit()
     return {"message": "Admin olusturuldu", "email": "info.yetenekavcisi@gmail.com"}
+
+
+@app.post("/setup/create-test-users")
+def create_test_users(db: Session = Depends(get_db)):
+    from auth import get_password_hash, create_access_token
+    results = []
+
+    users_to_create = [
+        {"email": "info@yetenekavcisi.com", "full_name": "Admin", "role": "Scout", "phone": "5000000001"},
+        {"email": "test@yetenekavcisi.com", "full_name": "Tester", "role": "Futbolcu", "phone": "5000000002"},
+    ]
+
+    for u in users_to_create:
+        user = db.query(models.User).filter(models.User.email == u["email"]).first()
+        if user:
+            user.is_verified = True
+            user.is_profile_complete = True
+            user.role = u["role"]
+            user.hashed_password = get_password_hash("Admin123!")
+            db.commit()
+            db.refresh(user)
+            results.append({"email": u["email"], "status": "updated", "role": user.role})
+        else:
+            new_user = models.User(
+                email=u["email"],
+                full_name=u["full_name"],
+                hashed_password=get_password_hash("Admin123!"),
+                role=u["role"],
+                phone_number=u["phone"],
+                is_verified=True,
+                is_profile_complete=True,
+                is_active=True,
+            )
+            db.add(new_user)
+            db.commit()
+            db.refresh(new_user)
+            results.append({"email": u["email"], "status": "created", "role": new_user.role})
+
+    return {"message": "Test kullanicilari hazir", "users": results}
