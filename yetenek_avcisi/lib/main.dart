@@ -6847,8 +6847,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Profil fotoğrafı varsa URL olarak gönder (şimdilik local path)
-      final profileImageUrl = _profileImage?.path;
+      // Profil fotoğrafı varsa önce Cloudinary'e yükle, URL al
+      String? profileImageUrl;
+      if (_profileImage != null) {
+        profileImageUrl = await BackendApi.uploadProfilePhoto(_profileImage!.path);
+      }
       
       final updatedUser = await BackendApi.updateUserProfile(
         fullName: _fullNameController.text.trim(),

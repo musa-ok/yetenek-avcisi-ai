@@ -397,6 +397,29 @@ def get_me(current_user: models.User = Depends(get_current_user)):
     return current_user
 
 
+@app.post("/me/upload-photo")
+async def upload_profile_photo(
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    import cloudinary
+    import cloudinary.uploader
+    import os
+    cloudinary.config(
+        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+        api_key=os.getenv("CLOUDINARY_API_KEY"),
+        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    )
+    contents = await file.read()
+    result = cloudinary.uploader.upload(contents, folder="profile_photos", resource_type="image")
+    url = result.get("secure_url")
+    current_user.profile_image_url = url
+    db.commit()
+    db.refresh(current_user)
+    return {"profile_image_url": url}
+
+
 @app.put("/me", response_model=schemas.UserResponse)
 def update_me(
     user_update: schemas.UserUpdate,

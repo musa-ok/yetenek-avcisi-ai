@@ -717,6 +717,21 @@ class BackendApi {
     return root;
   }
 
+  /// Profil fotoğrafı yükle (POST /me/upload-photo)
+  static Future<String> uploadProfilePhoto(String filePath) async {
+    final uri = _uri('/me/upload-photo');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_jsonHeaders(authRequired: true)..remove('Content-Type'));
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    final streamed = await request.send().timeout(const Duration(seconds: 30));
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 200) {
+      final decoded = json.decode(res.body);
+      return decoded['profile_image_url'] as String;
+    }
+    throw _friendlyError(res);
+  }
+
   /// Kullanıcı profili güncelle (PUT /me)
   static Future<AuthenticatedUser> updateUserProfile({
     String? fullName,
