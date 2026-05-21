@@ -530,6 +530,9 @@ def create_player(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    existing = db.query(models.Player).filter(models.Player.user_id == current_user.id).first()
+    if existing:
+        return existing
     user_name = current_user.full_name.strip()
     user_age = current_user.age or 18
     new_player = models.Player(
@@ -1182,3 +1185,23 @@ def create_test_users(db: Session = Depends(get_db)):
             results.append({"email": u["email"], "status": "created", "role": new_user.role})
 
     return {"message": "Test kullanicilari hazir", "users": results}
+
+
+@app.post("/setup/clean-duplicate-players")
+def clean_duplicate_players(db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    duplicates = (
+        db.query(models.Player.user_id, func.min(models.Player.id).label("keep_id"))
+        .group_by(models.Player.user_id)
+        .having(func.count(models.Player.id) > 1)
+        .all()
+    )
+    deleted = 0
+    for dup in duplicates:
+        db.query(models.Player).filter(
+            models.Player.user_id == dup.user_id,
+            models.Player.id != dup.keep_id
+        ).delete()
+        deleted += 1
+    db.commit()
+    return {"message": f"{deleted} duplicate temizlendi"}
