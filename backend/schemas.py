@@ -22,6 +22,7 @@ class UserResponse(BaseModel):
     birth_date: Optional[Any] = None
     age: Optional[int] = None
     profile_image_url: Optional[str] = None
+    is_verified: Optional[bool] = True
 
     @field_serializer('birth_date')
     def serialize_birth_date(self, v: Any) -> Optional[str]:
