@@ -75,8 +75,9 @@ class _MyInfoScreenState extends State<MyInfoScreen> {
         phoneNumber: _phoneController.text,
       );
       
-      // Global state'i güncelle
+      // Global state'i güncelle ve kalıcı olarak kaydet
       currentUserNotifier.value = updatedUser;
+      await SessionStore.save(AuthSession(accessToken: token ?? '', user: updatedUser));
       
       // Başarılı bildirim
       if (mounted) {
