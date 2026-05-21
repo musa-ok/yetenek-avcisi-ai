@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from jose import jwt, JWTError
@@ -10,9 +11,8 @@ from database import get_db
 from models import User
 from otp_service import store_otp, verify_otp, send_email_otp
 
-# Güvenlik Anahtarımız (Gerçek projelerde bu .env dosyasında saklanır)
-SECRET_KEY = "yetenek_avcisi_gizli_anahtar_cok_gizli"
-ALGORITHM = "HS256"
+SECRET_KEY = os.getenv("SECRET_KEY", "yetenek_avcisi_gizli_anahtar_cok_gizli")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # Token 1 hafta geçerli olsun
 
 # Şifreleri güvenli ve bağımlılık sorunsuz bir algoritma ile sakla
