@@ -625,9 +625,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final appleEmail = credential.email ?? '${credential.userIdentifier}@privaterelay.appleid.com';
         final firstName = credential.givenName ?? '';
         final lastName = credential.familyName ?? '';
-        final appleFullName = '${firstName} ${lastName}'.trim().isNotEmpty
-            ? '${firstName} ${lastName}'.trim()
-            : appleEmail.split('@').first;
+        final appleFullName = '${firstName} ${lastName}'.trim();
         final appleProviderId = credential.userIdentifier ?? '';
 
         if (!mounted) return;
@@ -1208,9 +1206,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final appleEmail = credential.email ?? '${credential.userIdentifier}@privaterelay.appleid.com';
         final firstName = credential.givenName ?? '';
         final lastName = credential.familyName ?? '';
-        final appleFullName = '${firstName} ${lastName}'.trim().isNotEmpty
-            ? '${firstName} ${lastName}'.trim()
-            : appleEmail.split('@').first;
+        final appleFullName = '${firstName} ${lastName}'.trim();
         final appleProviderId = credential.userIdentifier ?? '';
 
         if (!mounted) return;
