@@ -1193,7 +1193,7 @@ def create_test_users(db: Session = Depends(get_db)):
 @app.post("/setup/clean-duplicate-players")
 def clean_duplicate_players(db: Session = Depends(get_db)):
     deleted = 0
-    for model in [models.Player, models.MultiVideoPlayer]:
+    for model in [models.Player, models_multivideo.PlayerMultiVideo]:
         all_players = db.query(model).order_by(model.user_id, model.id).all()
         seen = {}
         for p in all_players:
