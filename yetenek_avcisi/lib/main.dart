@@ -1889,11 +1889,11 @@ class _MainScreenState extends State<MainScreen> {
           floatingActionButton: user.role == 'Futbolcu'
               ? FloatingActionButton.extended(
                   onPressed: () {
-                    // YENI MULTI-UPLOAD EKRANI - Glassmorphism + Dark Mode
+                    // YENI MULTI-UPLOAD EKRANI - Her zaman yeni analiz başlat
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => MultiUploadScreen(),
+                        builder: (_) => const MultiUploadScreen(forceNew: true),
                       ),
                     );
                   },
@@ -3723,7 +3723,7 @@ class _VideoUploadBottomSheetState extends State<VideoUploadBottomSheet> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => MultiUploadScreen(),
+          builder: (_) => const MultiUploadScreen(forceNew: true),
         ),
       );
       

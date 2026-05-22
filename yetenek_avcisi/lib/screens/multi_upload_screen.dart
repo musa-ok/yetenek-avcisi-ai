@@ -19,13 +19,25 @@ import 'player_stats_screen.dart';
 /// ==========================================
 
 class MultiUploadScreen extends StatefulWidget {
-  const MultiUploadScreen({super.key});
+  final bool forceNew;
+  const MultiUploadScreen({super.key, this.forceNew = false});
 
   @override
   State<MultiUploadScreen> createState() => _MultiUploadScreenState();
 }
 
 class _MultiUploadScreenState extends State<MultiUploadScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Yeni analiz istendiyse slotları sıfırla
+    if (widget.forceNew) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _resetAllSlots();
+      });
+    }
+  }
+
   // Mevki seçimi
   String selectedPosition = 'Forvet';
   final List<String> positions = [
