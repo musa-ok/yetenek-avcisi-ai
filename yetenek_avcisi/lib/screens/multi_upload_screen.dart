@@ -27,17 +27,6 @@ class MultiUploadScreen extends StatefulWidget {
 }
 
 class _MultiUploadScreenState extends State<MultiUploadScreen> {
-  @override
-  void initState() {
-    super.initState();
-    // Yeni analiz istendiyse slotları sıfırla
-    if (widget.forceNew) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _resetAllSlots();
-      });
-    }
-  }
-
   // Mevki seçimi
   String selectedPosition = 'Forvet';
   final List<String> positions = [
@@ -65,6 +54,12 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
   @override
   void initState() {
     super.initState();
+    // Yeni analiz istendiyse slotları sıfırla
+    if (widget.forceNew) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _resetAllSlots();
+      });
+    }
     _loadPositionSkills();
   }
 
