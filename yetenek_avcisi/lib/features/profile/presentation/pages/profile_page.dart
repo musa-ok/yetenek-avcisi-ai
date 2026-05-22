@@ -161,6 +161,9 @@ class ProfilePage extends StatelessWidget {
                       ),
                     ),
                   ),
+                  
+                  // Bottom padding for visibility
+                  const SizedBox(height: AppConstants.largePadding * 2),
                 ],
               ),
             );
