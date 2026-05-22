@@ -6,10 +6,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../app_theme.dart';
 import '../app_services.dart';
 import '../services/multi_upload_service.dart';
-import '../main.dart' show latestAnalysisNotifier, AnalysisResult, playersRefreshNotifier;
+import '../main.dart' show latestAnalysisNotifier, AnalysisResult, playersRefreshNotifier, kPitchGreen;
 import 'player_stats_screen.dart';
 
 /// ==========================================
