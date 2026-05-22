@@ -275,20 +275,41 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
     return slot <= completed + 1;
   }
 
-  /// Wi-Fi bağlantısı kontrolü - basit HTTP ping ile
+  /// Tüm slot durumlarını sıfırla - yeni analiz için
+  void _resetAllSlots() {
+    setState(() {
+      // Player'ı null yap - yeni başlangıç
+      player = null;
+      selectedPosition = null;
+      currentUploadingSlot = 0;
+      isAnalyzing = false;
+      slotSkills = {};
+    });
+    debugPrint('[MultiUpload] All slots reset - ready for new analysis');
+  }
+
+  /// Wi-Fi bağlantısı kontrolü - mobil veri mi yoksa Wi-Fi mı?
+  /// Android'de Wi-Fi kontrolü için connectivity_plus gerekli
+  /// iOS'ta hücresel veri kontrolü için Reachability kullanılır
   Future<bool> _checkIsWiFiConnection() async {
     try {
-      // Hızlı bir HTTP isteği gönder - timeout ile
+      // Platform spesifik kontrol yerine basit bir bant genişliği testi
+      final stopwatch = Stopwatch()..start();
       final response = await http
           .head(Uri.parse('https://www.google.com'))
-          .timeout(const Duration(seconds: 3));
-      // Başarılı olursa Wi-Fi olduğunu varsay (mobil veri de olabilir ama erişim var)
-      return true;
+          .timeout(const Duration(seconds: 2));
+      stopwatch.stop();
+      
+      // 150ms'den hızlıysa muhtemelen Wi-Fi (mobil veri genelde daha yavaş)
+      // Bu tam olarak doğru değil ama bir tahmin
+      final isFast = stopwatch.elapsedMilliseconds < 150;
+      debugPrint('[WiFi Check] Response time: ${stopwatch.elapsedMilliseconds}ms, isFast: $isFast');
+      return isFast;
     } on TimeoutException {
-      // Çok yavaş - muhtemelen mobil veri veya zayıf bağlantı
+      debugPrint('[WiFi Check] Timeout - slow connection, likely mobile data');
       return false;
     } catch (e) {
-      // Bağlantı yok veya hata - mobil veri kontrolü devreye girsin
+      debugPrint('[WiFi Check] Error: $e');
       return false;
     }
   }
@@ -419,8 +440,12 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
       );
       
       if (shouldAnalyze != true) {
-        // Kullanıcı istemiyor - sadece videoları kaydet, analiz yapma
+        // Kullanıcı istemiyor - videoları kaydet, slotları sıfırla, yeni başlangıç hazırla
         if (!mounted) return;
+        
+        // Slot durumlarını sıfırla - yeni analiz için hazır
+        _resetAllSlots();
+        
         setState(() => isAnalyzing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
