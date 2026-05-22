@@ -29,6 +29,103 @@ class PlayerStatsScreen extends StatefulWidget {
 class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
   final GlobalKey _fifaCardKey = GlobalKey();
   bool _isSharing = false;
+  bool _isAnalyzing = false;
+
+  Future<void> _startAnalysis() async {
+    if (_isAnalyzing) return;
+    setState(() => _isAnalyzing = true);
+
+    try {
+      // Backend'e analiz isteği gönder
+      final result = await MultiUploadService.finalizePlayer(
+        widget.player.id,
+        forceAnalysis: true, // Kullanıcı manuel olarak istediği için
+      );
+
+      if (mounted) {
+        // Analiz sonuçlarına git
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PlayerStatsScreen(
+              player: result,
+              onAnalysisComplete: widget.onAnalysisComplete,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isAnalyzing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Analiz başlatılamadı: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildStartAnalysisButton(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.24),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.psychology, color: AppColors.primary),
+              SizedBox(width: 8),
+              Text(
+                'AI Analizi',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Text(
+            'Yüklediğiniz 3 video için AI scout analizi başlatmak için tıklayın.',
+            style: TextStyle(
+              color: Colors.white70,
+              height: 1.5,
+            ),
+          ),
+          SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isAnalyzing ? null : _startAnalysis,
+              icon: _isAnalyzing
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Icon(Icons.play_arrow),
+              label: Text(_isAnalyzing ? 'Analiz Ediliyor...' : 'Analizi Başlat'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _shareFifaCard() async {
     if (_isSharing) return;
@@ -113,7 +210,9 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
               
               SizedBox(height: 32),
               if (widget.player.aiSummaryReport != null)
-                _buildAIReport(context),
+                _buildAIReport(context)
+              else
+                _buildStartAnalysisButton(context),
               
               SizedBox(height: 32),
               _buildStrengthsAndImprovements(context),
