@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../app_services.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/pages/login_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -435,6 +437,75 @@ class _SettingsMenu extends StatelessWidget {
             onTap: () {
               _showAboutDialog(context);
             },
+          ),
+          
+          const Divider(),
+          
+          // Hesap Silme Butonu - Apple App Store 5.1.1(v) gereksinimi
+          ListTile(
+            leading: const Icon(
+              Icons.delete_forever,
+              color: Colors.red,
+            ),
+            title: const Text(
+              'Hesabımı Sil',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: const Text(
+              'Hesabınızı ve tüm verilerinizi kalıcı olarak silin',
+              style: TextStyle(
+                color: Colors.red,
+              ),
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+              color: Colors.red,
+            ),
+            onTap: () {
+              _showDeleteAccountDialog(context);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hesabınızı Silmek İstediğinize Emin misiniz?'),
+        content: const Text(
+          'Hesabınızı ve tüm verilerinizi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              // TODO: Backend'e hesap silme isteği gönder
+              // Şimdilik sadece logout yap
+              await SessionStore.clear();
+              currentAccessTokenNotifier.value = null;
+              currentUserNotifier.value = null;
+              
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Hesabımı Sil'),
           ),
         ],
       ),
