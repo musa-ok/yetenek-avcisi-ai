@@ -1227,3 +1227,31 @@ def clean_duplicate_players(db: Session = Depends(get_db)):
                 seen[p.user_id] = p.id
     db.commit()
     return {"message": f"{deleted} duplicate temizlendi"}
+
+
+@app.post("/admin/reset-analysis-quota", tags=["Admin"])
+def reset_analysis_quota(
+    payload: dict,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Belirtilen kullanıcıların günlük analiz limitini sıfırla (sadece admin)."""
+    if (current_user.role or "").lower() != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="Sadece adminler erişebilir.")
+    
+    emails = payload.get("emails", [])
+    if not emails:
+        raise HTTPException(status_code=400, detail="E-posta adresleri gereklidir.")
+    
+    results = []
+    for email in emails:
+        user = db.query(models.User).filter(models.User.email == email.strip().lower()).first()
+        if user:
+            user.daily_analyses_count = 0
+            user.last_analysis_date = None
+            db.commit()
+            results.append({"email": email, "status": "reset", "daily_count": 0})
+        else:
+            results.append({"email": email, "status": "not_found"})
+    
+    return {"message": "Analiz limitleri sıfırlandı", "results": results}
