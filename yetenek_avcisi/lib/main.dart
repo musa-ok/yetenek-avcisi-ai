@@ -913,8 +913,8 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 _buildSocialButton(
                   icon: FontAwesomeIcons.apple,
-                  color: Colors.white,
-                  bgColor: Colors.black,
+                  color: Colors.black,
+                  bgColor: Colors.white,
                   onTap: () => _handleSocialLogin('apple'),
                 ),
                 const SizedBox(width: 16),
@@ -1665,8 +1665,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 _buildSocialButton(
                   icon: FontAwesomeIcons.apple,
-                  color: Colors.white,
-                  bgColor: Colors.black,
+                  color: Colors.black,
+                  bgColor: Colors.white,
                   onTap: () => _handleSocialLogin('apple'),
                 ),
                 const SizedBox(width: 16),
