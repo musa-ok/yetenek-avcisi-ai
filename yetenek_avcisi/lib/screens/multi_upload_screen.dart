@@ -4,6 +4,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:percent_indicator/percent_indicator.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../app_theme.dart';
 import '../app_services.dart';
 import '../services/multi_upload_service.dart';
@@ -296,6 +298,28 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
     if (pickedVideo == null) return;
 
+    // Mobil veri kontrolü
+    final connectivityResult = await Connectivity().checkConnectivity();
+    final isWiFi = connectivityResult == ConnectivityResult.wifi;
+    
+    if (!isWiFi) {
+      // Wi-Fi değilse, mobil veri ayarını kontrol et
+      final prefs = await SharedPreferences.getInstance();
+      final mobileUploadAllowed = prefs.getBool('settings_mobile_upload_allowed') ?? false;
+      
+      if (!mobileUploadAllowed) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mobil veride video yüklemek için ayarlardan izin vermelisiniz'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+    }
+
     if (!mounted) return;  // 🛡️ Güvenlik: Sayfa kapandıysa dur
     setState(() => currentUploadingSlot = slot);
 
@@ -343,6 +367,54 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
   }
 
   Future<void> _finalizePlayer() async {
+    // Otomatik analiz ayarını kontrol et
+    final prefs = await SharedPreferences.getInstance();
+    final autoAnalyzeEnabled = prefs.getBool('settings_auto_analyze_enabled') ?? true;
+    
+    if (!autoAnalyzeEnabled) {
+      // Otomatik analiz kapalı - kullanıcıya sor
+      if (!mounted) return;
+      final shouldAnalyze = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text('Video Analizi', style: TextStyle(color: Colors.white)),
+          content: const Text(
+            '3 video tamamlandı. AI analizi başlatılsın mı?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Sonra', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPitchGreen,
+                foregroundColor: Colors.black,
+              ),
+              child: const Text('Analiz Başlat'),
+            ),
+          ],
+        ),
+      );
+      
+      if (shouldAnalyze != true) {
+        // Kullanıcı istemiyor - sadece videoları kaydet, analiz yapma
+        if (!mounted) return;
+        setState(() => isAnalyzing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Videolar kaydedildi. Analiz istatistiklerden başlatılabilir.'),
+            backgroundColor: AppColors.accentBlue,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+    }
+    
     // Tüm butonları kilitle
     if (!mounted) return;  // 🛡️ Güvenlik kontrolü
     setState(() => isAnalyzing = true);
