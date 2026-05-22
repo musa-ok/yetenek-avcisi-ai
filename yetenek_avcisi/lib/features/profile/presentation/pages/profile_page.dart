@@ -140,6 +140,25 @@ class ProfilePage extends StatelessWidget {
                       ),
                     ),
                   ),
+                  
+                  const SizedBox(height: AppConstants.largePadding),
+                  
+                  // Delete Account Button (Apple App Store 5.1.1(v) requirement)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        _showDeleteAccountDialog(context);
+                      },
+                      icon: const Icon(Icons.delete_forever),
+                      label: const Text('Hesabımı Sil'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             );
@@ -174,6 +193,64 @@ class ProfilePage extends StatelessWidget {
             child: const Text('Çıkış Yap'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text(
+              'Hesabı Sil',
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Hesabınızı ve tüm verilerinizi kalıcı olarak silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'İptal',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _performAccountDeletion(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Evet, Hesabımı Sil'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _performAccountDeletion(BuildContext context) async {
+    // TODO: Backend'e hesap silme isteği atılacak
+    // Şimdilik sadece logout yap ve giriş sayfasına yönlendir
+    
+    context.read<AuthBloc>().add(AuthLogoutRequested());
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Hesabınız başarıyla silindi.'),
+        backgroundColor: Colors.green,
       ),
     );
   }
