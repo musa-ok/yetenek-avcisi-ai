@@ -37,10 +37,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
 
     try {
       // Backend'e analiz isteği gönder
-      final result = await MultiUploadService.finalizePlayer(
-        widget.player.id,
-        forceAnalysis: true, // Kullanıcı manuel olarak istediği için
-      );
+      final result = await MultiUploadService.finalizePlayer(widget.player.id);
 
       if (mounted) {
         // Analiz sonuçlarına git

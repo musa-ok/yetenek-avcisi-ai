@@ -30,12 +30,14 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
   String selectedPosition = 'Forvet';
   final List<String> positions = [
     'Kaleci',
-    'Stoper', 
-    'Bek',
-    'On Numara',
+    'Defans',
+    'Orta Saha',
     'Kanat',
-    'Forvet'
+    'Forvet',
   ];
+  
+  // Slot yetenek seçimleri (slot -> skill)
+  Map<int, String> slotSkills = {};
 
   // Kullanıcı bilgileri auth'dan otomatik çekilecek
   // Artık manuel isim/doğum tarihi girişi yok
@@ -280,7 +282,7 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
     setState(() {
       // Player'ı null yap - yeni başlangıç
       player = null;
-      selectedPosition = null;
+      selectedPosition = 'Forvet'; // Varsayılan pozisyon
       currentUploadingSlot = 0;
       isAnalyzing = false;
       slotSkills = {};
