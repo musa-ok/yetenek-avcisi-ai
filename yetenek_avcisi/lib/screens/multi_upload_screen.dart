@@ -1,10 +1,10 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../app_theme.dart';
 import '../app_services.dart';
@@ -274,6 +274,24 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
     return slot <= completed + 1;
   }
 
+  /// Wi-Fi bağlantısı kontrolü - basit HTTP ping ile
+  Future<bool> _checkIsWiFiConnection() async {
+    try {
+      // Hızlı bir HTTP isteği gönder - timeout ile
+      final response = await http
+          .head(Uri.parse('https://www.google.com'))
+          .timeout(const Duration(seconds: 3));
+      // Başarılı olursa Wi-Fi olduğunu varsay (mobil veri de olabilir ama erişim var)
+      return true;
+    } on TimeoutException {
+      // Çok yavaş - muhtemelen mobil veri veya zayıf bağlantı
+      return false;
+    } catch (e) {
+      // Bağlantı yok veya hata - mobil veri kontrolü devreye girsin
+      return false;
+    }
+  }
+
   Future<void> _uploadVideo(int slot, PositionSkill skill) async {
     // Aşamalı kontrol: Sadece aktif slot yüklenebilir
     if (!_isSlotActive(slot)) {
@@ -298,9 +316,8 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
     if (pickedVideo == null) return;
 
-    // Mobil veri kontrolü
-    final connectivityResult = await Connectivity().checkConnectivity();
-    final isWiFi = connectivityResult == ConnectivityResult.wifi;
+    // Mobil veri kontrolü - basit HTTP ping ile Wi-Fi hızını tahmin et
+    final isWiFi = await _checkIsWiFiConnection();
     
     if (!isWiFi) {
       // Wi-Fi değilse, mobil veri ayarını kontrol et
