@@ -1893,7 +1893,7 @@ class _MainScreenState extends State<MainScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const MultiUploadScreen(forceNew: true),
+                        builder: (_) => MultiUploadScreen(key: UniqueKey(), forceNew: true),
                       ),
                     );
                   },
