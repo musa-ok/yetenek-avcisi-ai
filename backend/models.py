@@ -64,7 +64,7 @@ class Player(Base):
     __tablename__ = "players"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -119,8 +119,8 @@ class Rating(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    player_id = Column(Integer, ForeignKey("players.id"), nullable=False, index=True)
+    reviewer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    player_id = Column(Integer, ForeignKey("players.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -159,10 +159,10 @@ class MultiVideoRating(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     player_id = Column(
         Integer,
-        ForeignKey("players_multivideo.id"),
+        ForeignKey("players_multivideo.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
