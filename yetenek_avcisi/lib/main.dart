@@ -3078,12 +3078,39 @@ class ClubProfileScreen extends StatelessWidget {
             isDestructiveAction: true,
             onPressed: () async {
               Navigator.pop(dialogContext);
-              // TODO: Backend API call for account deletion
-              // For now, just logout
+              
+              try {
+                // 🗑️ GERÇEK HESAP SİLME API ÇAĞRISI
+                final token = currentAccessTokenNotifier.value;
+                if (token != null) {
+                  final response = await http.delete(
+                    Uri.parse('https://stingray-app-g3o9y.ondigitalocean.app/users/me'),
+                    headers: {'Authorization': 'Bearer $token'},
+                  );
+                  
+                  if (response.statusCode == 200) {
+                    debugPrint('[Delete Account] ✅ Hesap başarıyla silindi');
+                  } else {
+                    debugPrint('[Delete Account] ❌ API hatası: ${response.statusCode}');
+                  }
+                }
+              } catch (e) {
+                debugPrint('[Delete Account] ⚠️ API hatası (devam ediyor): $e');
+              }
+              
+              // Session'ı temizle ve logout yap
               await SessionStore.clear();
               currentAccessTokenNotifier.value = null;
               currentUserNotifier.value = null;
+              
               if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Hesabınız ve tüm verileriniz silindi'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                
                 appNavigatorKey.currentState?.pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
                   (route) => false,
@@ -3106,13 +3133,9 @@ class LocalSettingsScreen extends StatefulWidget {
 }
 
 class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
-  static const _notifKey = 'settings_notifications_enabled';
   static const _mobileUploadKey = 'settings_mobile_upload_allowed';
-  static const _autoAnalyzeKey = 'settings_auto_analyze_enabled';
 
-  bool _notificationsEnabled = true;
   bool _mobileUploadAllowed = false;
-  bool _autoAnalyzeEnabled = true;
   bool _loading = true;
   String? _loadError;
 
@@ -3130,9 +3153,7 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
       if (!mounted) return;
 
       setState(() {
-        _notificationsEnabled = prefs.getBool(_notifKey) ?? true;
         _mobileUploadAllowed = prefs.getBool(_mobileUploadKey) ?? false;
-        _autoAnalyzeEnabled = prefs.getBool(_autoAnalyzeKey) ?? true;
         _loading = false;
         _loadError = null;
       });
@@ -3225,20 +3246,6 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
                     onChanged: (value) {
                       setState(() => _mobileUploadAllowed = value);
                       _saveBool(_mobileUploadKey, value);
-                    },
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _SettingsCard(
-                  title: l.autoAnalyze,
-                  subtitle: l.autoAnalyzeSub,
-                  trailing: Switch.adaptive(
-                    value: _autoAnalyzeEnabled,
-                    activeThumbColor: kPitchGreen,
-                    activeTrackColor: kPitchGreen.withValues(alpha: 0.45),
-                    onChanged: (value) {
-                      setState(() => _autoAnalyzeEnabled = value);
-                      _saveBool(_autoAnalyzeKey, value);
                     },
                   ),
                 ),
@@ -4364,19 +4371,9 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
   }
 
   void _showNotification(String message, Color color) {
-    // Bildirim ayarı kontrolü
-    _shouldShowNotification().then((enabled) {
-      if (enabled) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: color),
-        );
-      }
-    });
-  }
-
-  Future<bool> _shouldShowNotification() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('settings_notifications_enabled') ?? true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
   }
 
   Widget _buildCircularScore(int score, Color color) {

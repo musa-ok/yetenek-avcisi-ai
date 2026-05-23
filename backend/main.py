@@ -1265,3 +1265,31 @@ def reset_analysis_quota(
             results.append({"email": email, "status": "not_found"})
     
     return {"message": "Analiz limitleri sıfırlandı", "results": results}
+
+
+@app.delete("/users/me", tags=["User"])
+def delete_my_account(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Kendi hesabını kalıcı olarak sil (GDPR/Apple 5.1.1(v) uyumluluk)."""
+    user_id = current_user.id
+    
+    # 1. Kullanıcının tüm player kayıtlarını sil
+    db.query(models.Player).filter(models.Player.user_id == user_id).delete()
+    
+    # 2. Kullanıcının tüm multi-video player kayıtlarını sil
+    db.query(models_multivideo.PlayerMultiVideo).filter(
+        models_multivideo.PlayerMultiVideo.user_id == user_id
+    ).delete()
+    
+    # 3. Kullanıcının tüm rating'lerini sil
+    db.query(models.MultiVideoRating).filter(
+        models.MultiVideoRating.scout_id == user_id
+    ).delete()
+    
+    # 4. Kullanıcıyı sil
+    db.delete(current_user)
+    db.commit()
+    
+    return {"message": "Hesabınız ve tüm verileriniz kalıcı olarak silindi"}
