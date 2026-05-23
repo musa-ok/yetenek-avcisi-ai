@@ -4308,11 +4308,75 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
             // ─── AI SCOUT RAPOR KARTI ──────────────────────────────
             _buildScoutReportCard(player, hasAnalysis),
 
+            // ─── ANALİZ BAŞLAT BUTONU (Analiz yoksa) ─────────────────
+            if (!hasAnalysis && player.videos.length >= 3)
+              Padding(
+                padding: EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _startAnalysisForPlayer(player),
+                    icon: Icon(Icons.auto_awesome, color: Colors.black),
+                    label: Text(
+                      'AI Analizi Başlat',
+                      style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentGreen,
+                      foregroundColor: Colors.black,
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ),
+
             SizedBox(height: 4),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _startAnalysisForPlayer(MultiVideoPlayer player) async {
+    try {
+      // Analiz başlat
+      final finalizedPlayer = await MultiUploadService.finalizePlayer(player.id);
+      
+      if (mounted) {
+        _showNotification('✅ Analiz tamamlandı!', Colors.green);
+        _loadMyPlayers(); // Listeyi yenile
+        
+        // Detay sayfasına git
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PlayerStatsScreen(
+              player: finalizedPlayer,
+              onAnalysisComplete: _loadMyPlayers,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      _showNotification('❌ Analiz başlatılamadı: $e', Colors.red);
+    }
+  }
+
+  void _showNotification(String message, Color color) {
+    // Bildirim ayarı kontrolü
+    _shouldShowNotification().then((enabled) {
+      if (enabled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: color),
+        );
+      }
+    });
+  }
+
+  Future<bool> _shouldShowNotification() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('settings_notifications_enabled') ?? true;
   }
 
   Widget _buildCircularScore(int score, Color color) {
