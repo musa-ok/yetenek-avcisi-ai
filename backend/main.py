@@ -1274,32 +1274,67 @@ def delete_my_account(
 ):
     """Kendi hesabını kalıcı olarak sil (GDPR/Apple 5.1.1(v) uyumluluk)."""
     user_id = current_user.id
+    email = current_user.email
+    
+    import traceback
     
     try:
+        print(f"[DELETE ACCOUNT] Starting deletion for user {user_id} ({email})")
+        
         # 1. Önce kullanıcının verdiği tüm rating'leri sil (FK constraint)
-        db.query(models.MultiVideoRating).filter(
+        print(f"[DELETE ACCOUNT] Step 1: Deleting MultiVideoRating...")
+        mv_ratings = db.query(models.MultiVideoRating).filter(
             models.MultiVideoRating.scout_id == user_id
-        ).delete(synchronize_session=False)
+        ).all()
+        print(f"[DELETE ACCOUNT] Found {len(mv_ratings)} MultiVideoRating records")
+        for r in mv_ratings:
+            db.delete(r)
         db.commit()
+        print(f"[DELETE ACCOUNT] MultiVideoRating deleted")
         
-        # 2. Kullanıcının tüm multi-video player kayıtlarını sil
-        db.query(models_multivideo.PlayerMultiVideo).filter(
+        # 2. Legacy ratings sil
+        print(f"[DELETE ACCOUNT] Step 2: Deleting legacy Rating...")
+        legacy_ratings = db.query(models.Rating).filter(
+            models.Rating.reviewer_id == user_id
+        ).all()
+        print(f"[DELETE ACCOUNT] Found {len(legacy_ratings)} legacy Rating records")
+        for r in legacy_ratings:
+            db.delete(r)
+        db.commit()
+        print(f"[DELETE ACCOUNT] Legacy Rating deleted")
+        
+        # 3. Kullanıcının tüm multi-video player kayıtlarını sil
+        print(f"[DELETE ACCOUNT] Step 3: Deleting PlayerMultiVideo...")
+        mv_players = db.query(models_multivideo.PlayerMultiVideo).filter(
             models_multivideo.PlayerMultiVideo.user_id == user_id
-        ).delete(synchronize_session=False)
+        ).all()
+        print(f"[DELETE ACCOUNT] Found {len(mv_players)} PlayerMultiVideo records")
+        for p in mv_players:
+            db.delete(p)
         db.commit()
+        print(f"[DELETE ACCOUNT] PlayerMultiVideo deleted")
         
-        # 3. Kullanıcının tüm legacy player kayıtlarını sil
-        db.query(models.Player).filter(
+        # 4. Kullanıcının tüm legacy player kayıtlarını sil
+        print(f"[DELETE ACCOUNT] Step 4: Deleting legacy Player...")
+        legacy_players = db.query(models.Player).filter(
             models.Player.user_id == user_id
-        ).delete(synchronize_session=False)
+        ).all()
+        print(f"[DELETE ACCOUNT] Found {len(legacy_players)} legacy Player records")
+        for p in legacy_players:
+            db.delete(p)
         db.commit()
+        print(f"[DELETE ACCOUNT] Legacy Player deleted")
         
-        # 4. Son olarak kullanıcıyı sil
+        # 5. Son olarak kullanıcıyı sil
+        print(f"[DELETE ACCOUNT] Step 5: Deleting user {user_id}...")
         db.delete(current_user)
         db.commit()
+        print(f"[DELETE ACCOUNT] ✅ User {user_id} successfully deleted")
         
         return {"message": "Hesabınız ve tüm verileriniz kalıcı olarak silindi"}
         
     except Exception as e:
         db.rollback()
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        print(f"[DELETE ACCOUNT] ❌ ERROR: {error_detail}")
         raise HTTPException(status_code=500, detail=f"Hesap silinirken hata: {str(e)}")
