@@ -3079,6 +3079,9 @@ class ClubProfileScreen extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(dialogContext);
               
+              bool deleted = false;
+              String errorMsg = '';
+              
               try {
                 // 🗑️ GERÇEK HESAP SİLME API ÇAĞRISI
                 final token = currentAccessTokenNotifier.value;
@@ -3086,30 +3089,45 @@ class ClubProfileScreen extends StatelessWidget {
                   final response = await http.delete(
                     Uri.parse('https://stingray-app-g3o9y.ondigitalocean.app/users/me'),
                     headers: {'Authorization': 'Bearer $token'},
-                  );
+                  ).timeout(Duration(seconds: 30));
                   
                   if (response.statusCode == 200) {
+                    deleted = true;
                     debugPrint('[Delete Account] ✅ Hesap başarıyla silindi');
                   } else {
-                    debugPrint('[Delete Account] ❌ API hatası: ${response.statusCode}');
+                    errorMsg = 'API Hatası: ${response.statusCode}';
+                    debugPrint('[Delete Account] ❌ $errorMsg - Body: ${response.body}');
                   }
+                } else {
+                  errorMsg = 'Token bulunamadı';
                 }
               } catch (e) {
-                debugPrint('[Delete Account] ⚠️ API hatası (devam ediyor): $e');
+                errorMsg = 'Bağlantı hatası: $e';
+                debugPrint('[Delete Account] ⚠️ $errorMsg');
               }
               
-              // Session'ı temizle ve logout yap
+              // Session'ı temizle ve logout yap (silinse de silinmese de)
               await SessionStore.clear();
               currentAccessTokenNotifier.value = null;
               currentUserNotifier.value = null;
               
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Hesabınız ve tüm verileriniz silindi'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
+                if (deleted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('✅ Hesabınız ve tüm verileriniz silindi'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ Hesap silinemedi: $errorMsg'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 5),
+                    ),
+                  );
+                }
                 
                 appNavigatorKey.currentState?.pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -3133,8 +3151,10 @@ class LocalSettingsScreen extends StatefulWidget {
 }
 
 class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
+  static const _notifKey = 'settings_notifications_enabled';
   static const _mobileUploadKey = 'settings_mobile_upload_allowed';
 
+  bool _notificationsEnabled = true;
   bool _mobileUploadAllowed = false;
   bool _loading = true;
   String? _loadError;
@@ -3153,6 +3173,7 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
       if (!mounted) return;
 
       setState(() {
+        _notificationsEnabled = prefs.getBool(_notifKey) ?? true;
         _mobileUploadAllowed = prefs.getBool(_mobileUploadKey) ?? false;
         _loading = false;
         _loadError = null;
@@ -4371,9 +4392,19 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
   }
 
   void _showNotification(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
-    );
+    // Bildirim ayarı kontrolü
+    _shouldShowNotification().then((enabled) {
+      if (enabled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: color),
+        );
+      }
+    });
+  }
+
+  Future<bool> _shouldShowNotification() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('settings_notifications_enabled') ?? true;
   }
 
   Widget _buildCircularScore(int score, Color color) {

@@ -1275,21 +1275,31 @@ def delete_my_account(
     """Kendi hesabını kalıcı olarak sil (GDPR/Apple 5.1.1(v) uyumluluk)."""
     user_id = current_user.id
     
-    # 1. Kullanıcının tüm player kayıtlarını sil
-    db.query(models.Player).filter(models.Player.user_id == user_id).delete()
-    
-    # 2. Kullanıcının tüm multi-video player kayıtlarını sil
-    db.query(models_multivideo.PlayerMultiVideo).filter(
-        models_multivideo.PlayerMultiVideo.user_id == user_id
-    ).delete()
-    
-    # 3. Kullanıcının tüm rating'lerini sil
-    db.query(models.MultiVideoRating).filter(
-        models.MultiVideoRating.scout_id == user_id
-    ).delete()
-    
-    # 4. Kullanıcıyı sil
-    db.delete(current_user)
-    db.commit()
-    
-    return {"message": "Hesabınız ve tüm verileriniz kalıcı olarak silindi"}
+    try:
+        # 1. Önce kullanıcının verdiği tüm rating'leri sil (FK constraint)
+        db.query(models.MultiVideoRating).filter(
+            models.MultiVideoRating.scout_id == user_id
+        ).delete(synchronize_session=False)
+        db.commit()
+        
+        # 2. Kullanıcının tüm multi-video player kayıtlarını sil
+        db.query(models_multivideo.PlayerMultiVideo).filter(
+            models_multivideo.PlayerMultiVideo.user_id == user_id
+        ).delete(synchronize_session=False)
+        db.commit()
+        
+        # 3. Kullanıcının tüm legacy player kayıtlarını sil
+        db.query(models.Player).filter(
+            models.Player.user_id == user_id
+        ).delete(synchronize_session=False)
+        db.commit()
+        
+        # 4. Son olarak kullanıcıyı sil
+        db.delete(current_user)
+        db.commit()
+        
+        return {"message": "Hesabınız ve tüm verileriniz kalıcı olarak silindi"}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Hesap silinirken hata: {str(e)}")
