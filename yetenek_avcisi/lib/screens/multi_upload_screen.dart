@@ -246,7 +246,14 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
       return;
     }
 
-    setState(() => isCreatingPlayer = true);
+    // 🚨 STATE SIFIRLAMA - Yeni başlangıç için tüm verileri temizle
+    setState(() {
+      isCreatingPlayer = true;
+      player = null;
+      slotSkills = {};
+      currentUploadingSlot = 0;
+      isAnalyzing = false;
+    });
     
     try {
       // Kullanıcı bilgileri Bearer token'dan otomatik çekiliyor
@@ -256,7 +263,25 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
         accessToken: token,
       );
 
-      setState(() => player = newPlayer);
+      // 🚨 GELEN VERİ KONTROLÜ - Eğer backend eski dolu player döndürürse temizle
+      if (newPlayer.videos.any((v) => v.isUploaded)) {
+        debugPrint('[WARNING] Backend dolu player döndürdü, temizleniyor...');
+        // Yeni boş player oluştur
+        final cleanPlayer = MultiVideoPlayer(
+          id: newPlayer.id,
+          userId: newPlayer.userId,
+          name: newPlayer.name,
+          birthDate: newPlayer.birthDate,
+          age: newPlayer.age,
+          position: newPlayer.position,
+          overallRating: 0,
+          videos: [], // BOŞ video listesi
+          isComplete: false,
+        );
+        setState(() => player = cleanPlayer);
+      } else {
+        setState(() => player = newPlayer);
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

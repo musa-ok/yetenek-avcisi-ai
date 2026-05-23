@@ -788,10 +788,20 @@ def create_multivideo_player_from_auth(position: str = Form(...), db: Session = 
     position_code = get_position_code(position)
     name = current_user.full_name or current_user.email.split('@')[0]
     age = current_user.age or 18
-    existing = db.query(models_multivideo.PlayerMultiVideo).filter(models_multivideo.PlayerMultiVideo.user_id == current_user.id).first()
-    if existing:
-        return {"message": f"{name} için kayıt zaten mevcut.", "player": existing.to_dict()}
-    player = models_multivideo.PlayerMultiVideo(user_id=current_user.id, name=name, age=age, position=position, position_code=position_code, overall_rating=0, skill_scores={}, ai_strengths=[], ai_improvements=[])
+    
+    # 🚨 HER ZAMAN YENI PLAYER OLUŞTUR - Eski varsa dokunma, yeni kayıt aç
+    # Kullanıcı "İstatistiklerim" sayfasından eski analizlere bakabilir
+    player = models_multivideo.PlayerMultiVideo(
+        user_id=current_user.id, 
+        name=name, 
+        age=age, 
+        position=position, 
+        position_code=position_code, 
+        overall_rating=0, 
+        skill_scores={}, 
+        ai_strengths=[], 
+        ai_improvements=[]
+    )
     db.add(player)
     db.commit()
     db.refresh(player)
