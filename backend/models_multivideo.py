@@ -104,7 +104,8 @@ class PlayerMultiVideo(Base):
                 "skill": self.video_1_skill,
                 "rating": self.video_1_rating,
                 "analysis": self.video_1_ai_analysis,
-                "slot": 1
+                "slot": 1,
+                "is_uploaded": self.video_1_url is not None and len(self.video_1_url) > 0
             }
         elif slot == 2:
             return {
@@ -112,7 +113,8 @@ class PlayerMultiVideo(Base):
                 "skill": self.video_2_skill,
                 "rating": self.video_2_rating,
                 "analysis": self.video_2_ai_analysis,
-                "slot": 2
+                "slot": 2,
+                "is_uploaded": self.video_2_url is not None and len(self.video_2_url) > 0
             }
         elif slot == 3:
             return {
@@ -120,7 +122,8 @@ class PlayerMultiVideo(Base):
                 "skill": self.video_3_skill,
                 "rating": self.video_3_rating,
                 "analysis": self.video_3_ai_analysis,
-                "slot": 3
+                "slot": 3,
+                "is_uploaded": self.video_3_url is not None and len(self.video_3_url) > 0
             }
         return None
     
