@@ -1284,7 +1284,7 @@ def delete_my_account(
         # 1. Önce kullanıcının verdiği tüm rating'leri sil (FK constraint)
         print(f"[DELETE ACCOUNT] Step 1: Deleting MultiVideoRating...")
         mv_ratings = db.query(models.MultiVideoRating).filter(
-            models.MultiVideoRating.scout_id == user_id
+            models.MultiVideoRating.reviewer_id == user_id
         ).all()
         print(f"[DELETE ACCOUNT] Found {len(mv_ratings)} MultiVideoRating records")
         for r in mv_ratings:
