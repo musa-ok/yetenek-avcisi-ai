@@ -274,9 +274,15 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
           birthDate: newPlayer.birthDate,
           age: newPlayer.age,
           position: newPlayer.position,
+          positionCode: newPlayer.positionCode,
           overallRating: 0,
-          videos: [], // BOŞ video listesi
+          averageRating: 0.0,
+          completionPercentage: 0.0,
           isComplete: false,
+          videos: [], // BOŞ video listesi
+          skillScores: {},
+          aiStrengths: [],
+          aiImprovements: [],
         );
         setState(() => player = cleanPlayer);
       } else {
