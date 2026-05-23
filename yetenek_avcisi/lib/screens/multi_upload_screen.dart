@@ -54,11 +54,13 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
   @override
   void initState() {
     super.initState();
-    // Yeni analiz istendiyse slotları sıfırla
+    // Yeni analiz istendiyse slotları hemen sıfırla
     if (widget.forceNew) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _resetAllSlots();
-      });
+      player = null;
+      selectedPosition = 'Forvet';
+      currentUploadingSlot = 0;
+      isAnalyzing = false;
+      slotSkills = {};
     }
     _loadPositionSkills();
   }

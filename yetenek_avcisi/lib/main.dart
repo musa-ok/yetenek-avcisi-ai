@@ -3006,6 +3006,14 @@ class ClubProfileScreen extends StatelessWidget {
                 isDanger: true,
                 onTap: () => _handleLogoutTap(context),
               ),
+              const SizedBox(height: 10),
+              // Hesap Silme Butonu - Apple App Store 5.1.1(v)
+              _ProfileOptionTile(
+                icon: Icons.delete_forever_rounded,
+                title: l.en ? 'Delete Account' : 'Hesabımı Sil',
+                isDanger: true,
+                onTap: () => _showDeleteAccountDialog(context),
+              ),
             ],
           ),
         );
@@ -3046,6 +3054,46 @@ class ClubProfileScreen extends StatelessWidget {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    final l = L10nScope.of(context);
+    showCupertinoDialog(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(l.en ? 'Delete Account?' : 'Hesabı Sil?'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(l.en 
+            ? 'Your account and all data will be permanently deleted. This cannot be undone.'
+            : 'Hesabınız ve tüm verileriniz kalıcı olarak silinecek. Bu işlem geri alınamaz.'),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l.cancel),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              // TODO: Backend API call for account deletion
+              // For now, just logout
+              await SessionStore.clear();
+              currentAccessTokenNotifier.value = null;
+              currentUserNotifier.value = null;
+              if (context.mounted) {
+                appNavigatorKey.currentState?.pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            child: Text(l.en ? 'Delete Account' : 'Hesabı Sil'),
+          ),
+        ],
+      ),
     );
   }
 }
