@@ -232,6 +232,44 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
     );
   }
 
+  Future<void> _showAiConsentAndCreate() async {
+    final consent = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Yapay Zeka Analiz Onayı',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Yüklediğiniz videolar ve profil verileriniz, yetenek analizi yapılabilmesi için güvenli bir şekilde yapay zeka iş ortaklarımızla paylaşılacaktır. Bu işleme izin veriyor musunuz?',
+          style: TextStyle(color: Colors.white70, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('İptal', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPitchGreen,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Kabul Et', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (consent == true) {
+      _createPlayer();
+    }
+  }
+
   Future<void> _createPlayer() async {
     final user = currentUserNotifier.value;
     final token = currentAccessTokenNotifier.value;
@@ -764,7 +802,7 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: isCreatingPlayer ? null : _createPlayer,
+                        onPressed: isCreatingPlayer ? null : _showAiConsentAndCreate,
                         child: isCreatingPlayer
                             ? CircularProgressIndicator(
                                 valueColor: AlwaysStoppedAnimation<Color>(
