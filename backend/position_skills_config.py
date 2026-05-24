@@ -261,6 +261,81 @@ POSITION_SKILLS_CONFIG = {
             }
         ],
         "attributes": ["shooting", "dribbling", "finishing", "positioning"]
+    },
+
+    # Flutter UI alias'ları
+    "Defans": {
+        "code": "CB",
+        "skills": [
+            {
+                "slot": 1,
+                "name": "Hava Topları",
+                "name_en": "Aerial Duels",
+                "description": "Kafa vuruşu ve hava topu hakimiyeti",
+                "description_en": "Heading and aerial dominance",
+                "icon": "👤",
+                "duration_sec": 10,
+                "color": "#A8E6CF"
+            },
+            {
+                "slot": 2,
+                "name": "Markaj",
+                "name_en": "Marking",
+                "description": "Rakip takip ve pozisyon alma",
+                "description_en": "Opponent tracking and positioning",
+                "icon": "👁️",
+                "duration_sec": 10,
+                "color": "#DCEDC1"
+            },
+            {
+                "slot": 3,
+                "name": "Fiziksel Güç",
+                "name_en": "Physical Strength",
+                "description": "İkili mücadeleler ve güç kullanımı",
+                "description_en": "Duels and physical presence",
+                "icon": "💪",
+                "duration_sec": 10,
+                "color": "#FFD3B6"
+            }
+        ],
+        "attributes": ["heading", "marking", "tackling", "strength"]
+    },
+
+    "Orta Saha": {
+        "code": "CM",
+        "skills": [
+            {
+                "slot": 1,
+                "name": "Pas Aralığı",
+                "name_en": "Pass Range",
+                "description": "Kısa ve uzun mesafe paslar",
+                "description_en": "Short and long range passing",
+                "icon": "🦶",
+                "duration_sec": 10,
+                "color": "#B4A7D6"
+            },
+            {
+                "slot": 2,
+                "name": "Top Kapma",
+                "name_en": "Ball Recovery",
+                "description": "Pres ve top kapma mücadeleleri",
+                "description_en": "Pressing and ball winning",
+                "icon": "🔒",
+                "duration_sec": 10,
+                "color": "#D4A5A5"
+            },
+            {
+                "slot": 3,
+                "name": "Oyun Görüşü",
+                "name_en": "Vision",
+                "description": "360 derece saha görüşü",
+                "description_en": "360 degree field awareness",
+                "icon": "👁️",
+                "duration_sec": 10,
+                "color": "#9ED2C6"
+            }
+        ],
+        "attributes": ["passing", "tackling", "vision", "work_rate"]
     }
 }
 
