@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 // Premium Dark Theme renkleri - Ana uygulama ile uyumlu
 const Color kScaffoldDark = Color(0xFF0B0F19);
 const Color kElevatedCard = Color(0xFF151C2B);
-const Color kPitchGreen = Color(0xFF00FF87);
+const Color _kPrivacyGreen = Color(0xFF00FF87);
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
@@ -48,7 +48,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   Icon(
                     Icons.shield_outlined,
                     size: 48,
-                    color: kPitchGreen.withOpacity(0.9),
+                    color: _kPrivacyGreen.withOpacity(0.9),
                   ),
                   const SizedBox(height: 16),
                   const Text(
@@ -132,7 +132,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   Text(
                     'info.yetenekavcisi@gmail.com',
                     style: TextStyle(
-                      color: kPitchGreen,
+                      color: _kPrivacyGreen,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -169,10 +169,10 @@ class PrivacyPolicyScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: kPitchGreen.withOpacity(0.1),
+                  color: _kPrivacyGreen.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: kPitchGreen, size: 22),
+                child: Icon(icon, color: _kPrivacyGreen, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
