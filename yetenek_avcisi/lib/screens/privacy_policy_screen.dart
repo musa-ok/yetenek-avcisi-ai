@@ -61,7 +61,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Son güncelleme: 9 Mayıs 2026',
+                    'Son güncelleme: 24 Mayıs 2026',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.5),
                       fontSize: 13,
@@ -94,13 +94,18 @@ class PrivacyPolicyScreen extends StatelessWidget {
               content: 'Hesabınızı istediğiniz zaman silebilirsiniz. Hesap silme işlemi gerçekleştirildiğinde tüm video kayıtları ve analizler kalıcı olarak silinir. Bu işlem geri alınamaz.',
             ),
             _buildSection(
+              icon: Icons.smart_toy_outlined,
+              title: '5. Yapay Zeka Veri Paylaşımı',
+              content: 'Kullanıcıların yüklediği videolar ve profil verileri, yetenek analizi yapılabilmesi amacıyla üçüncü taraf yapay zeka servisleriyle (Google Gemini AI) paylaşılmakta ve işlenmektedir. Bu veriler analiz amacı dışında kullanılmaz ve üçüncü taraflarca saklanmaz. Uygulamayı kullanmaya devam ederek bu işlemeye onay vermiş sayılırsınız.',
+            ),
+            _buildSection(
               icon: Icons.share_outlined,
-              title: '5. Üçüncü Taraf Paylaşımı',
-              content: 'Verileriniz hiçbir üçüncü taraf şirket veya kuruluşla paylaşılmaz. Sadece yetkili scoutlar ve sizin erişiminiz mevcuttur. Sosyal medya paylaşımları sizin kontrolünüzdedir.',
+              title: '6. Diğer Üçüncü Taraf Paylaşımı',
+              content: 'Video analizi dışında verileriniz herhangi bir üçüncü taraf şirket veya kuruluşla paylaşılmaz. Sosyal medya paylaşımları tamamen sizin kontrolünüzdedir.',
             ),
             _buildSection(
               icon: Icons.verified_user_outlined,
-              title: '6. KVKK ve Yasal Uyum',
+              title: '7. KVKK ve Yasal Uyum',
               content: 'Tüm veri işleme faaliyetlerimiz 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) ve ilgili mevzuata uygun olarak yürütülmektedir. Haklarınız için bize ulaşabilirsiniz.',
             ),
             

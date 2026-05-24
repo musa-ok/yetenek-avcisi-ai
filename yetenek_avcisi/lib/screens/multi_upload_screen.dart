@@ -12,6 +12,7 @@ import '../app_services.dart';
 import '../services/multi_upload_service.dart';
 import '../main.dart' show latestAnalysisNotifier, AnalysisResult, playersRefreshNotifier, kPitchGreen;
 import 'player_stats_screen.dart';
+import 'privacy_policy_screen.dart';
 
 /// ==========================================
 /// MULTI-UPLOAD SCREEN
@@ -243,9 +244,34 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
           'Yapay Zeka Analiz Onayı',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        content: const Text(
-          'Yüklediğiniz videolar ve profil verileriniz, yetenek analizi yapılabilmesi için güvenli bir şekilde yapay zeka iş ortaklarımızla paylaşılacaktır. Bu işleme izin veriyor musunuz?',
-          style: TextStyle(color: Colors.white70, height: 1.5),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Yüklediğiniz videolar ve profil verileriniz, yetenek analizi yapılabilmesi için güvenli bir şekilde yapay zeka iş ortaklarımızla paylaşılacaktır. Bu işleme izin veriyor musunuz?',
+              style: TextStyle(color: Colors.white70, height: 1.5),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  ctx,
+                  MaterialPageRoute(
+                    builder: (_) => const PrivacyPolicyScreen(),
+                  ),
+                );
+              },
+              child: const Text(
+                'Gizlilik Politikasını görüntüle →',
+                style: TextStyle(
+                  color: kPitchGreen,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
