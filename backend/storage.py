@@ -48,6 +48,17 @@ class StorageService:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
+    def upload_video_bytes(
+        self, file_content: bytes, filename: Optional[str] = None
+    ) -> str:
+        """Ham video baytlarını yükle (slot doğrulaması sonrası)."""
+        file_extension = os.path.splitext(filename)[1] if filename else ".mp4"
+        if not filename:
+            filename = f"{uuid.uuid4()}{file_extension}"
+        if _use_cloudinary:
+            return self._upload_to_cloudinary(file_content, filename)
+        return self._upload_to_local(file_content, filename)
+
     def _upload_to_cloudinary(self, file_content: bytes, filename: str) -> str:
         """Upload file to Cloudinary"""
         public_id = f"videos/{filename}"

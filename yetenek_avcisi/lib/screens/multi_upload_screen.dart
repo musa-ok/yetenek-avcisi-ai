@@ -6,10 +6,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../app_theme.dart';
 import '../app_services.dart';
+import '../core/settings/app_settings.dart';
 import '../services/multi_upload_service.dart';
+import '../widgets/analysis_finalize_dialog.dart';
 import '../main.dart' show latestAnalysisNotifier, AnalysisResult, playersRefreshNotifier, kPitchGreen;
 import 'player_stats_screen.dart';
 import 'privacy_policy_screen.dart';
@@ -52,6 +53,37 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
   bool isAnalyzing = false; // AI analizi süreci kilitliyor
   int currentUploadingSlot = 0;
 
+  /// Yeşil/açık arka planda koyu metin; koyu arka planda beyaz metin.
+  void _showAppSnack(
+    String message, {
+    Color? backgroundColor,
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    if (!mounted) return;
+    final bg = backgroundColor ?? const Color(0xFF2A3448);
+    final lightBackground = bg == AppColors.success ||
+        bg == AppColors.accentGreen ||
+        bg == AppColors.warning;
+    final fg = lightBackground ? const Color(0xFF0B0F19) : Colors.white;
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: TextStyle(
+            color: fg,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        backgroundColor: bg,
+        behavior: SnackBarBehavior.floating,
+        duration: duration,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -78,15 +110,91 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
       final loadedSkills = await MultiUploadService.getPositionSkills(selectedPosition);
       setState(() => skills = loadedSkills);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Yetenekler yüklenemedi: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showAppSnack('Yetenekler yüklenemedi: $e', backgroundColor: AppColors.error);
     } finally {
       setState(() => isLoading = false);
     }
+  }
+
+  Future<bool> _showKosuFilmingGuide({required String phase}) async {
+    final isFlat = phase == 'flat';
+    final title = isFlat ? '20 metre düz koşu' : '10 metre yokuş koşu';
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: Text(title, style: const TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Sürenin ölçülebilmesi için:',
+                style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              _kosuTip('📱 Telefon sabit (tripod / yere dayalı)'),
+              _kosuTip('↔️ Yan çekim — oyuncu yatay geçsin'),
+              _kosuTip('🟠 Başlangıç ve bitişte koni veya çizgi görünsün'),
+              _kosuTip('🏃 Koşu öncesi/sonrası 1 sn boşluk bırakın'),
+              if (isFlat)
+                _kosuTip('📏 Mümkünse 20 m mesafe tek kadrajda'),
+              const SizedBox(height: 8),
+              Text(
+                'Çizgi yoksa ölçüm zayıflar veya reddedilir.',
+                style: TextStyle(color: AppColors.warning.withValues(alpha: 0.9), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.accentGreen),
+            child: const Text('Anladım, devam', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Widget _kosuTip(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text, style: const TextStyle(color: AppColors.textSecondary, height: 1.35)),
+      );
+
+  void _showKosuQualityFeedback(BuildContext context, Map<String, dynamic> q) {
+    final quality = '${q['quality'] ?? ''}';
+    final sec = q['timing_preview_sec'];
+    final tips = (q['tips'] as List?)?.map((e) => '$e').toList() ?? [];
+    final color = quality == 'good'
+        ? AppColors.success
+        : quality == 'warn'
+            ? AppColors.warning
+            : AppColors.accentBlue;
+
+    var msg = quality == 'good'
+        ? 'Ön ölçüm iyi'
+        : 'Video kabul edildi';
+    if (sec != null) {
+      msg += ' · ~${sec}s';
+      if (q['timing_method'] == 'gate_crossing') msg += ' (çizgi geçişi)';
+    }
+    if (tips.isNotEmpty && quality != 'good') {
+      msg += '\n${tips.first}';
+    }
+
+    _showAppSnack(
+      msg,
+      backgroundColor: color,
+      duration: Duration(seconds: quality == 'good' ? 3 : 5),
+    );
   }
 
   /// Video kaynağı seçimi (Kamera veya Galeri)
@@ -301,12 +409,7 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
     final token = currentAccessTokenNotifier.value;
     
     if (user == null || token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen önce giriş yapın'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showAppSnack('Lütfen önce giriş yapın', backgroundColor: AppColors.error);
       return;
     }
 
@@ -353,38 +456,70 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
         setState(() => player = newPlayer);
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ ${newPlayer.name} için 3 video yüklemeye başlayın'),
-          backgroundColor: AppColors.success,
-        ),
+      _showAppSnack(
+        '${newPlayer.name} için ${newPlayer.requiredVideoCount} video yüklemeye başlayın',
+        backgroundColor: AppColors.success,
+        duration: const Duration(seconds: 4),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Hata: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showAppSnack('Hata: $e', backgroundColor: AppColors.error);
     } finally {
       setState(() => isCreatingPlayer = false);
     }
   }
 
-  // Aşamalı yükleme: Kaçıncı slota kadar yüklendi?
-  int get _completedSlots {
-    if (player == null) return 0;
-    return player!.videos.where((v) => v.isUploaded).length;
+  VideoInfo? _videoForSlot(int slot) {
+    if (player == null) return null;
+    for (final v in player!.videos) {
+      if (v.slot == slot) return v;
+    }
+    return VideoInfo(slot: slot);
   }
 
-  // Slot aktif mi? (Aşamalı yükleme)
+  bool _slotFullyUploaded(PositionSkill skill) {
+    final v = _videoForSlot(skill.slot);
+    return v?.isUploaded ?? false;
+  }
+
+  int get _completedUploads {
+    if (player == null) return 0;
+    var n = 0;
+    for (final s in skills) {
+      final v = _videoForSlot(s.slot);
+      if (s.isKosuSlot) {
+        if (v?.kosuFlatUploaded == true) n++;
+        if (v?.kosuUphillUploaded == true) n++;
+      } else if (v?.isUploaded == true) {
+        n++;
+      }
+    }
+    return n;
+  }
+
+  int get _requiredVideoCount {
+    if (player != null && player!.requiredVideoCount > 0) {
+      return player!.requiredVideoCount;
+    }
+    var n = 0;
+    for (final s in skills) {
+      n += s.isKosuSlot ? 2 : 1;
+    }
+    return n > 0 ? n : 3;
+  }
+
   bool _isSlotActive(int slot) {
-    // Sadece sıradaki slot aktif
-    // Slot 1 her zaman aktif
-    // Slot 2, slot 1 tamamlandıktan sonra aktif
-    // Slot 3, slot 2 tamamlandıktan sonra aktif
-    final completed = _completedSlots;
-    return slot <= completed + 1;
+    if (skills.isEmpty) return slot == 1;
+    final ordered = [...skills]..sort((a, b) => a.slot.compareTo(b.slot));
+    for (var i = 0; i < ordered.length; i++) {
+      if (ordered[i].slot == slot) {
+        if (i == 0) return true;
+        for (var j = 0; j < i; j++) {
+          if (!_slotFullyUploaded(ordered[j])) return false;
+        }
+        return !_slotFullyUploaded(ordered[i]);
+      }
+    }
+    return false;
   }
 
   /// Tüm slot durumlarını sıfırla - yeni analiz için
@@ -400,40 +535,105 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
     debugPrint('[MultiUpload] All slots reset - ready for new analysis');
   }
 
-  /// Wi-Fi bağlantısı kontrolü - mobil veri mi yoksa Wi-Fi mı?
-  /// Android'de Wi-Fi kontrolü için connectivity_plus gerekli
-  /// iOS'ta hücresel veri kontrolü için Reachability kullanılır
-  Future<bool> _checkIsWiFiConnection() async {
+  /// Ayarlar → mobil veri izni + gerçek bağlantı tipi (connectivity_plus).
+  Future<bool> _ensureUploadAllowedOnNetwork() async {
+    final allowed = await AppSettings.canUploadVideoOnCurrentNetwork();
+    if (allowed || !mounted) return allowed;
+
+    _showAppSnack(
+      'Mobil veride yüklemek için Ayarlar\'dan izin ver veya Wi-Fi\'ye bağlan.',
+      backgroundColor: AppColors.warning,
+      duration: const Duration(seconds: 4),
+    );
+    return false;
+  }
+
+  Future<void> _uploadKosuVideos(int slot, PositionSkill skill) async {
+    if (!_isSlotActive(slot)) {
+      _showAppSnack(
+        'Önce önceki videoyu tamamlayın',
+        backgroundColor: AppColors.warning,
+      );
+      return;
+    }
+
+    final v = _videoForSlot(slot);
+    final needFlat = v?.kosuFlatUploaded != true;
+    final phase = needFlat ? 'flat' : 'uphill';
+    final stepLabel = needFlat
+        ? '20 metre düz koşu'
+        : '10 metre yokuş yukarı koşu';
+
+    final proceed = await _showKosuFilmingGuide(phase: phase);
+    if (!proceed) return;
+
+    final source = await _showVideoSourceSelector();
+    if (source == null) return;
+
+    final picker = ImagePicker();
+    final pickedVideo = await picker.pickVideo(
+      source: source,
+      maxDuration: const Duration(seconds: 30),
+    );
+    if (pickedVideo == null) return;
+
+    if (!await _ensureUploadAllowedOnNetwork()) return;
+
+    if (!mounted) return;
+    setState(() => currentUploadingSlot = slot);
+
     try {
-      // Platform spesifik kontrol yerine basit bir bant genişliği testi
-      final stopwatch = Stopwatch()..start();
-      final response = await http
-          .head(Uri.parse('https://www.google.com'))
-          .timeout(const Duration(seconds: 2));
-      stopwatch.stop();
-      
-      // 150ms'den hızlıysa muhtemelen Wi-Fi (mobil veri genelde daha yavaş)
-      // Bu tam olarak doğru değil ama bir tahmin
-      final isFast = stopwatch.elapsedMilliseconds < 150;
-      debugPrint('[WiFi Check] Response time: ${stopwatch.elapsedMilliseconds}ms, isFast: $isFast');
-      return isFast;
-    } on TimeoutException {
-      debugPrint('[WiFi Check] Timeout - slow connection, likely mobile data');
-      return false;
+      final body = await MultiUploadService.uploadKosuToSlotRaw(
+        playerId: player!.id,
+        slot: slot,
+        phase: phase,
+        skillName: skill.name,
+        videoFile: File(pickedVideo.path),
+      );
+      if (!mounted) return;
+      final updated = MultiVideoPlayer.fromJson(body['player'] as Map<String, dynamic>);
+      setState(() => player = updated);
+
+      final q = MultiUploadService.parseKosuQualityFromUploadResponse(body);
+      if (q != null) _showKosuQualityFeedback(context, q);
+
+      final after = _videoForSlot(slot);
+      if (after?.kosuFlatUploaded == true && after?.kosuUphillUploaded != true) {
+        _showAppSnack(
+          '20m düz koşu tamam. Şimdi 10 metre yokuş yukarı koşuyu yükleyin.',
+          backgroundColor: AppColors.accentBlue,
+          duration: const Duration(seconds: 4),
+        );
+      }
+
+      if (updated.isComplete) {
+        await _finalizePlayer();
+      }
     } catch (e) {
-      debugPrint('[WiFi Check] Error: $e');
-      return false;
+      if (!mounted) return;
+      final err = e.toString().replaceFirst('Exception: ', '');
+      _showAppSnack(
+        err.toLowerCase().contains('uyumsuz video')
+            ? err
+            : 'Video yüklenemedi: $err',
+        backgroundColor: AppColors.error,
+        duration: Duration(seconds: err.toLowerCase().contains('uyumsuz') ? 6 : 4),
+      );
+    } finally {
+      if (mounted) setState(() => currentUploadingSlot = 0);
     }
   }
 
   Future<void> _uploadVideo(int slot, PositionSkill skill) async {
-    // Aşamalı kontrol: Sadece aktif slot yüklenebilir
+    if (skill.isKosuSlot) {
+      await _uploadKosuVideos(slot, skill);
+      return;
+    }
+
     if (!_isSlotActive(slot)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Önce önceki videoyu tamamlayın'),
-          backgroundColor: AppColors.warning,
-        ),
+      _showAppSnack(
+        'Önce önceki videoyu tamamlayın',
+        backgroundColor: AppColors.warning,
       );
       return;
     }
@@ -450,26 +650,7 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
     if (pickedVideo == null) return;
 
-    // Mobil veri kontrolü - basit HTTP ping ile Wi-Fi hızını tahmin et
-    final isWiFi = await _checkIsWiFiConnection();
-    
-    if (!isWiFi) {
-      // Wi-Fi değilse, mobil veri ayarını kontrol et
-      final prefs = await SharedPreferences.getInstance();
-      final mobileUploadAllowed = prefs.getBool('settings_mobile_upload_allowed') ?? false;
-      
-      if (!mobileUploadAllowed) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mobil veride video yüklemek için ayarlardan izin vermelisiniz'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        return;
-      }
-    }
+    if (!await _ensureUploadAllowedOnNetwork()) return;
 
     if (!mounted) return;  // 🛡️ Güvenlik: Sayfa kapandıysa dur
     setState(() => currentUploadingSlot = slot);
@@ -487,14 +668,11 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
       // Bir sonraki slot açıldı bildirimi
       if (!mounted) return;  // 🛡️ Güvenlik kontrolü
-      if (slot < 3 && !updatedPlayer.isComplete) {
-        final nextSkill = skills[slot]; // slot 1 index 0, slot 2 index 1
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('🎉 Sıradaki: ${nextSkill.name} videosunu yükleyin'),
-            backgroundColor: AppColors.accentBlue,
-            duration: Duration(seconds: 3),
-          ),
+      if (slot < _requiredVideoCount && !updatedPlayer.isComplete) {
+        final nextSkill = skills[slot]; // slot 1 → index 0
+        _showAppSnack(
+          'Sıradaki: ${nextSkill.name} videosunu yükleyin',
+          backgroundColor: AppColors.accentBlue,
         );
       }
 
@@ -504,12 +682,13 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
         await _finalizePlayer();
       }
     } catch (e) {
-      if (!mounted) return;  // 🛡️ Güvenlik: Hata durumunda sayfa kapandıysa dur
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Video yüklenemedi: $e'),
-          backgroundColor: AppColors.error,
-        ),
+      if (!mounted) return;
+      final err = e.toString().replaceFirst('Exception: ', '');
+      final isMismatch = err.toLowerCase().contains('uyumsuz video');
+      _showAppSnack(
+        isMismatch ? err : 'Video yüklenemedi: $err',
+        backgroundColor: AppColors.error,
+        duration: Duration(seconds: isMismatch ? 6 : 4),
       );
     } finally {
       if (!mounted) return;  // 🛡️ Güvenlik: Finally'da da kontrol
@@ -530,9 +709,9 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
         builder: (context) => AlertDialog(
           backgroundColor: Colors.grey[900],
           title: const Text('Video Analizi', style: TextStyle(color: Colors.white)),
-          content: const Text(
-            '3 video tamamlandı. AI analizi başlatılsın mı?',
-            style: TextStyle(color: Colors.white70),
+          content: Text(
+            '$_requiredVideoCount video tamamlandı. AI analizi başlatılsın mı?',
+            style: const TextStyle(color: Colors.white70),
           ),
           actions: [
             TextButton(
@@ -559,12 +738,9 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
         _resetAllSlots();
         
         setState(() => isAnalyzing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Videolar kaydedildi. Analiz istatistiklerden başlatılabilir.'),
-            backgroundColor: AppColors.accentBlue,
-            duration: Duration(seconds: 3),
-          ),
+        _showAppSnack(
+          'Videolar kaydedildi. Analiz istatistiklerden başlatılabilir.',
+          backgroundColor: AppColors.accentBlue,
         );
         return;
       }
@@ -576,9 +752,21 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
     try {
       // AI analizi yap (Gemini 1-3 dk sürebilir)
-      final finalizedPlayer = await MultiUploadService.finalizePlayer(player!.id);
+      final result = await MultiUploadService.finalizePlayer(player!.id);
+      final finalizedPlayer = result.player;
 
-      if (!mounted) return;  // 🛡️ Güvenlik: AI analizi sırasında sayfa kapandıysa
+      if (!mounted) return;
+      if (!result.success) {
+        setState(() => isAnalyzing = false);
+        await showAnalysisFinalizeDialog(
+          context: context,
+          result: result,
+          onRetry: _finalizePlayer,
+          onAnalysisComplete: _refreshDashboardData,
+        );
+        return;
+      }
+
       setState(() {
         player = finalizedPlayer;
         isAnalyzing = false;
@@ -588,9 +776,12 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
       // göstermesi için global notifier'ı set et.
       latestAnalysisNotifier.value = AnalysisResult(
         overall: finalizedPlayer.overallRating,
-        pace: finalizedPlayer.pace ?? 0,
-        finishing: finalizedPlayer.finishing ?? 0,
-        passing: finalizedPlayer.passing ?? 0,
+        pace: finalizedPlayer.pace,
+        finishing: finalizedPlayer.finishing,
+        passing: finalizedPlayer.passing,
+        dribbling: finalizedPlayer.dribbling,
+        defending: finalizedPlayer.defending,
+        physical: finalizedPlayer.strength,
         report: finalizedPlayer.aiSummaryReport ?? '',
       );
 
@@ -615,12 +806,10 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
       setState(() => isAnalyzing = false);
 
       if (!mounted) return;  // 🛡️ Ekstra güvenlik
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Analiz tamamlanamadı: $e'),
-          backgroundColor: AppColors.error,
-          duration: Duration(seconds: 6),
-        ),
+      _showAppSnack(
+        'Analiz tamamlanamadı: $e',
+        backgroundColor: AppColors.error,
+        duration: const Duration(seconds: 6),
       );
     }
   }
@@ -774,7 +963,9 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Theme(
+      data: AppTheme.darkTheme,
+      child: Stack(
       children: [
         Scaffold(
           backgroundColor: AppColors.scaffoldBackground,
@@ -800,6 +991,7 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
                     '3 Yetenek Videosu',
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
                     ),
                   ).animate().fadeIn(duration: 500.ms).slideX(),
 
@@ -807,7 +999,10 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
                   Text(
                     'Her mevki için 3 farklı yeteneğinizi gösteren kısa videolar yükleyin',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.45,
+                    ),
                   ).animate().fadeIn(delay: 200.ms, duration: 500.ms),
 
                   SizedBox(height: 32),
@@ -829,13 +1024,23 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
                       height: 56,
                       child: ElevatedButton(
                         onPressed: isCreatingPlayer ? null : _showAiConsentAndCreate,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accentGreen,
+                          foregroundColor: const Color(0xFF0B0F19),
+                          disabledBackgroundColor: AppColors.textMuted,
+                          disabledForegroundColor: Colors.white54,
+                        ),
                         child: isCreatingPlayer
                             ? CircularProgressIndicator(
                                 valueColor: AlwaysStoppedAnimation<Color>(
                                   AppColors.scaffoldBackground,
                                 ),
                               )
-                            : Text('Başla ve 3 Video Yükle'),
+                            : Text(
+                                skills.isEmpty
+                                    ? 'Başla ve Video Yükle'
+                                    : 'Başla ve ${skills.length} Video Yükle',
+                              ),
                       ),
                     ).animate().fadeIn(delay: 500.ms),
                   ] else ...[
@@ -844,13 +1049,11 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
                     SizedBox(height: 24),
 
-                    // 3 Video Slotu
                     if (skills.isNotEmpty) ...[
-                      _buildVideoSlot(1, skills[0]),
-                      SizedBox(height: 16),
-                      _buildVideoSlot(2, skills[1]),
-                      SizedBox(height: 16),
-                      _buildVideoSlot(3, skills[2]),
+                      for (var i = 0; i < skills.length; i++) ...[
+                        if (i > 0) SizedBox(height: 16),
+                        _buildVideoSlot(skills[i].slot, skills[i]),
+                      ],
                     ],
                   ],
                 ],
@@ -861,6 +1064,7 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
         // AI analizi sırasında tüm ekranı kapla - dokunuşları engelle
         if (isAnalyzing) _buildAnalyzingOverlay(),
       ],
+    ),
     );
   }
 
@@ -928,6 +1132,7 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
     
     return GlassmorphismContainer(
       padding: EdgeInsets.all(20),
+      backgroundColor: AppColors.cardBackground,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -972,12 +1177,15 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
                       user?.fullName ?? 'Misafir',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     SizedBox(height: 4),
                     Text(
                       user?.email ?? '',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1004,6 +1212,7 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
     
     return GlassmorphismContainer(
       padding: EdgeInsets.all(20),
+      backgroundColor: AppColors.cardBackground,
       child: Column(
         children: [
           Row(
@@ -1025,7 +1234,10 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
               Spacer(),
               Text(
                 '${player?.name ?? ''}',
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -1041,8 +1253,10 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
           ),
           SizedBox(height: 12),
           Text(
-            '${((progress / 100) * 3).round()}/3 Video Yüklendi',
-            style: Theme.of(context).textTheme.bodySmall,
+            '$_completedUploads/$_requiredVideoCount Video Yüklendi',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
@@ -1050,19 +1264,24 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
   }
 
   Widget _buildVideoSlot(int slot, PositionSkill skill) {
-    final videoInfo = player?.videos.firstWhere(
-      (v) => v.slot == slot,
-      orElse: () => VideoInfo(slot: slot),
-    );
+    final videoInfo = _videoForSlot(slot);
     final isUploaded = videoInfo?.isUploaded ?? false;
+    final kosuFlat = videoInfo?.kosuFlatUploaded ?? false;
+    final kosuUphill = videoInfo?.kosuUphillUploaded ?? false;
     final isUploading = currentUploadingSlot == slot;
     final isActive = _isSlotActive(slot);
     final isLocked = !isActive && !isUploaded;
 
+    final kosuBusy = skill.isKosuSlot && isUploading;
+    final kosuDone = skill.isKosuSlot && isUploaded;
+
     return GestureDetector(
-      onTap: isUploaded || isUploading || isLocked || isAnalyzing ? null : () => _uploadVideo(slot, skill),
+      onTap: (isUploaded && !skill.isKosuSlot) || kosuBusy || (isLocked && !skill.isKosuSlot) || isAnalyzing
+          ? null
+          : () => _uploadVideo(slot, skill),
       child: GlassmorphismContainer(
         padding: EdgeInsets.all(20),
+        backgroundColor: AppColors.cardBackground,
         borderColor: isUploaded
             ? AppColors.success.withValues(alpha: 0.5)
             : isLocked
@@ -1133,18 +1352,84 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
                     'Slot $slot: ${skill.name}',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isLocked ? AppColors.textMuted : Colors.white,
+                      color: isLocked
+                          ? const Color(0xFFB8C4D4)
+                          : AppColors.textPrimary,
                     ),
                   ),
                   SizedBox(height: 4),
                   Text(
-                    isLocked 
-                        ? 'Önce ${slot == 2 ? "Slot 1" : "Slot 2"} tamamlanmalı'
-                        : skill.description,
+                    isLocked
+                        ? 'Önce önceki slot tamamlanmalı'
+                        : skill.isKosuSlot
+                            ? kosuDone
+                                ? 'Koşu testi tamamlandı'
+                                : kosuFlat
+                                    ? 'Adım 2: 10 metre yokuş yukarı koşu'
+                                    : 'Adım 1: 20 metre düz koşu'
+                            : skill.displayDescription,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isLocked ? AppColors.textMuted : null,
+                      color: isLocked
+                          ? const Color(0xFF9AA8BC)
+                          : AppColors.textSecondary,
                     ),
                   ),
+                  if (skill.isKosuSlot && !isLocked && !kosuDone) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Text(
+                        'Koşu çekimi: telefon sabit, yan görünüm, başlangıç ve bitiş '
+                        'çizgisi/konisi görünsün. 20m düzde tüm mesafe kadrajda olsun.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.35,
+                          color: AppColors.textMuted.withValues(alpha: 0.95),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (skill.isKosuSlot && (kosuFlat || kosuUphill)) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          kosuFlat ? Icons.check_circle : Icons.circle_outlined,
+                          size: 14,
+                          color: kosuFlat ? AppColors.success : AppColors.textMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '20m düz',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(
+                          kosuUphill ? Icons.check_circle : Icons.circle_outlined,
+                          size: 14,
+                          color: kosuUphill ? AppColors.success : AppColors.textMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '10m yokuş',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (isUploaded) ...[
                     SizedBox(height: 6),
                     Row(

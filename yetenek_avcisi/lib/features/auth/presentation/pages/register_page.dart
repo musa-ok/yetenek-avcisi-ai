@@ -182,7 +182,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 8),
                   
                   Text(
-                    'Yetenek Avcısı topluluğuna katıl',
+                    '${AppConstants.appName} topluluğuna katıl',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                     ),

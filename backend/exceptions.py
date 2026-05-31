@@ -91,6 +91,36 @@ class StorageException(YetenekAvcisiException):
             details=details
         )
 
+class CacheException(YetenekAvcisiException):
+    """Cache related exceptions."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=f"Cache error: {message}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details=details,
+        )
+
+
+class RateLimitException(YetenekAvcisiException):
+    """Rate limit aşıldı."""
+
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded",
+        details: Optional[Dict[str, Any]] = None,
+        retry_after: Optional[int] = None,
+    ):
+        d = dict(details or {})
+        if retry_after is not None:
+            d["retry_after"] = retry_after
+        super().__init__(
+            message=message,
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            details=d,
+        )
+
+
 class AIServiceException(YetenekAvcisiException):
     """AI service related exceptions"""
     

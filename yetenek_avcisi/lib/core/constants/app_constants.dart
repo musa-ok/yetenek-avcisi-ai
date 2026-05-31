@@ -1,12 +1,7 @@
+import 'package:yetenek_avcisi/core/config/api_config.dart';
+
 class AppConstants {
-  // API
-  // iOS Simulator: http://127.0.0.1:8000
-  // Android Emulator: http://10.0.2.2:8000
-  // Physical Device: http://<YOUR_MAC_IP>:8000
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'https://stingray-app-g3o9y.ondigitalocean.app', // Production: DigitalOcean
-  );
+  static String get baseUrl => kApiBaseUrl;
   
   // Routes
   static const String splashRoute = '/splash';
@@ -27,7 +22,8 @@ class AppConstants {
   static const String languageKey = 'language_code';
   
   // App Info
-  static const String appName = 'Yetenek Avcısı';
+  static const String appName = 'Scoutiq';
+  static const String appTagline = 'Futbol scout platformu';
   static const String appVersion = '2.0.0';
   
   // UI Constants

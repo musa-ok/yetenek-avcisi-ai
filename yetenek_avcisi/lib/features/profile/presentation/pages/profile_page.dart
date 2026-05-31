@@ -247,17 +247,22 @@ class ProfilePage extends StatelessWidget {
   }
 
   void _performAccountDeletion(BuildContext context) async {
-    // TODO: Backend'e hesap silme isteği atılacak
-    // Şimdilik sadece logout yap ve giriş sayfasına yönlendir
-    
-    context.read<AuthBloc>().add(AuthLogoutRequested());
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Hesabınız başarıyla silindi.'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    try {
+      await BackendApi.deleteMyAccount();
+      if (!context.mounted) return;
+      context.read<AuthBloc>().add(AuthLogoutRequested());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hesabınız ve verileriniz kalıcı olarak silindi.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hesap silinemedi: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 }
 
@@ -526,8 +531,8 @@ class _SettingsMenu extends StatelessWidget {
         color: AppColors.primary,
       ),
       children: [
-        const Text(
-          'Yetenek Avcısı - Futbolcu yetenek analiz ve scout platformu',
+        Text(
+          '${AppConstants.appName} - Futbolcu yetenek analiz ve scout platformu',
         ),
       ],
     );

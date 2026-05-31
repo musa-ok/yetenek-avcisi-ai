@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:yetenek_avcisi/core/constants/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -10,6 +11,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import '../app_theme.dart';
 import '../services/multi_upload_service.dart';
+import '../widgets/analysis_finalize_dialog.dart';
+import '../widgets/smart_summary_card.dart';
+import '../widgets/slot_breakdown_card.dart';
 import 'fullscreen_multi_video_player.dart'; 
 
 class PlayerStatsScreen extends StatefulWidget {
@@ -30,27 +34,45 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
   final GlobalKey _fifaCardKey = GlobalKey();
   bool _isSharing = false;
   bool _isAnalyzing = false;
+  late MultiVideoPlayer _player;
+
+  @override
+  void initState() {
+    super.initState();
+    _player = widget.player;
+  }
 
   Future<void> _startAnalysis() async {
     if (_isAnalyzing) return;
     setState(() => _isAnalyzing = true);
 
     try {
-      // Backend'e analiz isteği gönder
-      final result = await MultiUploadService.finalizePlayer(widget.player.id);
+      final result = await MultiUploadService.finalizePlayer(_player.id);
 
-      if (mounted) {
-        // Analiz sonuçlarına git
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PlayerStatsScreen(
-              player: result,
-              onAnalysisComplete: widget.onAnalysisComplete,
-            ),
-          ),
+      if (!mounted) return;
+      if (!result.success) {
+        setState(() => _isAnalyzing = false);
+        await showAnalysisFinalizeDialog(
+          context: context,
+          result: result,
+          onRetry: _startAnalysis,
+          onAnalysisComplete: widget.onAnalysisComplete,
         );
+        if (result.partial) {
+          setState(() => _player = result.player);
+        }
+        return;
       }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PlayerStatsScreen(
+            player: result.player,
+            onAnalysisComplete: widget.onAnalysisComplete,
+          ),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         setState(() => _isAnalyzing = false);
@@ -58,10 +80,58 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
           SnackBar(
             content: Text('Analiz başlatılamadı: $e'),
             backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Tekrar',
+              textColor: Colors.white,
+              onPressed: _startAnalysis,
+            ),
           ),
         );
       }
     }
+  }
+
+  Widget _buildAnalysisErrorBanner() {
+    if (!_player.analysisFailed && _player.analysisError == null) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Analiz tamamlanamadı',
+            style: TextStyle(
+              color: AppColors.error,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _player.analysisError ?? 'Bilinmeyen hata',
+            style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _isAnalyzing ? null : _startAnalysis,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Tekrar Dene'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.error,
+              side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildStartAnalysisButton(BuildContext context) {
@@ -148,7 +218,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
 
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'image/png')],
-        text: '🎮 ${widget.player.name} - Puan: ${widget.player.overallRating}/100\nYetenek Avcısı ile analiz edildi!',
+        text: '🎮 ${_player.name} - Puan: ${_player.overallRating}/100\n${AppConstants.appName} ile analiz edildi!',
         sharePositionOrigin: origin,
       );
     } catch (e) {
@@ -161,11 +231,12 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
   @override
   Widget build(BuildContext context) {
     debugPrint('[PlayerStats] ==========================================');
-    debugPrint('[PlayerStats] BUILD START: player.id=${widget.player.id} name=${widget.player.name}');
-    debugPrint('[PlayerStats] ALL FIELDS: pace=${widget.player.pace} finishing=${widget.player.finishing} passing=${widget.player.passing}');
-    debugPrint('[PlayerStats] ALL FIELDS: dribbling=${widget.player.dribbling} defending=${widget.player.defending} strength=${widget.player.strength}');
-    debugPrint('[PlayerStats] skillScores=${widget.player.skillScores}');
+    debugPrint('[PlayerStats] BUILD START: player.id=${_player.id} name=${_player.name}');
+    debugPrint('[PlayerStats] ALL FIELDS: pace=${_player.pace} finishing=${_player.finishing} passing=${_player.passing}');
+    debugPrint('[PlayerStats] ALL FIELDS: dribbling=${_player.dribbling} defending=${_player.defending} strength=${_player.strength}');
+    debugPrint('[PlayerStats] skillScores=${_player.skillScores}');
     debugPrint('[PlayerStats] ==========================================');
+    final p = _player;
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       extendBodyBehindAppBar: true,
@@ -194,6 +265,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
           padding: EdgeInsets.all(20),
           child: Column(
             children: [
+              _buildAnalysisErrorBanner(),
               RepaintBoundary(
                 key: _fifaCardKey,
                 child: _buildFifaCard(context),
@@ -205,10 +277,19 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
               SizedBox(height: 24),
               _buildVideoAnalysis(context),
               
+              SizedBox(height: 24),
+              if (p.slotBreakdown.isNotEmpty)
+                SlotBreakdownCard(
+                  breakdown: p.slotBreakdown,
+                  analysisVersion: p.analysisVersion,
+                ),
+              if (p.slotBreakdown.isNotEmpty) SizedBox(height: 16),
+              SmartSummaryCard(playerId: p.id),
+              
               SizedBox(height: 32),
-              if (widget.player.aiSummaryReport != null)
+              if (p.aiSummaryReport != null && p.aiSummaryReport!.isNotEmpty)
                 _buildAIReport(context)
-              else
+              else if (p.isComplete)
                 _buildStartAnalysisButton(context),
               
               SizedBox(height: 32),
@@ -223,7 +304,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
   Widget _buildPlayVideosButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        final List<String> videoUrls = widget.player.videos
+        final List<String> videoUrls = _player.videos
             .where((v) => v.url != null && v.url!.isNotEmpty)
             .map((v) => v.url!)
             .toList();
@@ -234,7 +315,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
             MaterialPageRoute(
               builder: (context) => FullscreenMultiVideoPlayer(
                 videoUrls: videoUrls,
-                playerName: widget.player.name,
+                playerName: _player.name,
               ),
             ),
           );
@@ -287,21 +368,21 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
   }
 
   Widget _buildFifaCard(BuildContext context) {
-    final overallScore = widget.player.overallRating;
-    final bool hasAnalysis = widget.player.aiSummaryReport != null && 
-                             widget.player.aiSummaryReport!.isNotEmpty;
+    final overallScore = _player.overallRating;
+    final bool hasAnalysis = _player.aiSummaryReport != null && 
+                             _player.aiSummaryReport!.isNotEmpty;
     final cardColor = hasAnalysis ? _getScoreColor(overallScore) : Colors.grey;
     
-    debugPrint('[PlayerStats] RAW: pace=${widget.player.pace}(${widget.player.pace?.runtimeType}) finishing=${widget.player.finishing}(${widget.player.finishing?.runtimeType})');
-    debugPrint('[PlayerStats] skill_scores=${widget.player.skillScores}');
+    debugPrint('[PlayerStats] RAW: pace=${_player.pace}(${_player.pace?.runtimeType}) finishing=${_player.finishing}(${_player.finishing?.runtimeType})');
+    debugPrint('[PlayerStats] skill_scores=${_player.skillScores}');
     
     final skills = [
-      {'name': 'HIZ', 'value': widget.player.pace, 'icon': Icons.speed},
-      {'name': 'ŞUT', 'value': widget.player.finishing, 'icon': Icons.sports_soccer},
-      {'name': 'PAS', 'value': widget.player.passing, 'icon': Icons.swap_horiz},
-      {'name': 'DRİBLİNG', 'value': widget.player.dribbling, 'icon': Icons.control_camera},
-      {'name': 'DEFANS', 'value': widget.player.defending, 'icon': Icons.shield},
-      {'name': 'FİZİK', 'value': widget.player.strength, 'icon': Icons.fitness_center},
+      {'name': 'HIZ', 'value': _player.pace, 'icon': Icons.speed},
+      {'name': 'ŞUT', 'value': _player.finishing, 'icon': Icons.sports_soccer},
+      {'name': 'PAS', 'value': _player.passing, 'icon': Icons.swap_horiz},
+      {'name': 'DRİBLİNG', 'value': _player.dribbling, 'icon': Icons.control_camera},
+      {'name': 'DEFANS', 'value': _player.defending, 'icon': Icons.shield},
+      {'name': 'FİZİK', 'value': _player.strength, 'icon': Icons.fitness_center},
     ];
 
     return Container(
@@ -317,13 +398,13 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildCardBadge(widget.player.position.substring(0,1).toUpperCase(), widget.player.position),
+                _buildCardBadge(_player.position.substring(0,1).toUpperCase(), _player.position),
                 _buildOverallCircle(overallScore, cardColor),
-                _buildCardBadge('${widget.player.age}', 'YAŞ'),
+                _buildCardBadge('${_player.age}', 'YAŞ'),
               ],
             ),
             SizedBox(height: 20),
-            Text(widget.player.name.toUpperCase(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)),
+            Text(_player.name.toUpperCase(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)),
             SizedBox(height: 24),
             SizedBox(height: 8),
             GridView.builder(
@@ -377,7 +458,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
   }
 
   Widget _buildVideoAnalysis(BuildContext context) {
-    final uploadedVideos = widget.player.videos.where((v) => v.isUploaded).toList();
+    final uploadedVideos = _player.videos.where((v) => v.isUploaded).toList();
     final allUrls = uploadedVideos
         .where((v) => v.url != null && v.url!.isNotEmpty)
         .map((v) => v.url!)
@@ -390,7 +471,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
         MaterialPageRoute(
           builder: (_) => FullscreenMultiVideoPlayer(
             videoUrls: allUrls,
-            playerName: widget.player.name,
+            playerName: _player.name,
           ),
         ),
       );
@@ -411,13 +492,13 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
 
   int _scoreForVideo(VideoInfo video) {
     final skill = (video.skill ?? '').toLowerCase();
-    if (skill.contains('şut') || skill.contains('bitir')) return widget.player.finishing ?? 0;
-    if (skill.contains('dripl') || skill.contains('top')) return widget.player.dribbling ?? 0;
-    if (skill.contains('hız') || skill.contains('sürat')) return widget.player.pace ?? 0;
-    if (skill.contains('pas')) return widget.player.passing ?? 0;
-    if (skill.contains('defans')) return widget.player.defending ?? 0;
-    if (skill.contains('fizik') || skill.contains('güç')) return widget.player.strength ?? 0;
-    return widget.player.overallRating;
+    if (skill.contains('şut') || skill.contains('bitir')) return _player.finishing ?? 0;
+    if (skill.contains('dripl') || skill.contains('top')) return _player.dribbling ?? 0;
+    if (skill.contains('hız') || skill.contains('sürat')) return _player.pace ?? 0;
+    if (skill.contains('pas')) return _player.passing ?? 0;
+    if (skill.contains('defans')) return _player.defending ?? 0;
+    if (skill.contains('fizik') || skill.contains('güç')) return _player.strength ?? 0;
+    return _player.overallRating;
   }
 
   Widget _buildVideoProgressCard(String title, int score, Color color) {
@@ -452,16 +533,16 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [Icon(Icons.psychology, color: AppColors.accentPurple), SizedBox(width: 8), Text('AI Scout Analizi', style: TextStyle(color: AppColors.accentPurple, fontWeight: FontWeight.bold))]),
         SizedBox(height: 12),
-        Text(widget.player.aiSummaryReport!, style: TextStyle(height: 1.5, fontSize: 13, color: Colors.white)),
+        Text(_player.aiSummaryReport!, style: TextStyle(height: 1.5, fontSize: 13, color: Colors.white)),
       ]),
     );
   }
 
   Widget _buildStrengthsAndImprovements(BuildContext context) {
     return Row(children: [
-      _buildTagCard('Güçlü Yönler', widget.player.aiStrengths, AppColors.success, Icons.trending_up),
+      _buildTagCard('Güçlü Yönler', _player.aiStrengths, AppColors.success, Icons.trending_up),
       SizedBox(width: 10),
-      _buildTagCard('Gelişim', widget.player.aiImprovements, AppColors.accentOrange, Icons.trending_flat),
+      _buildTagCard('Gelişim', _player.aiImprovements, AppColors.accentOrange, Icons.trending_flat),
     ]);
   }
 

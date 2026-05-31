@@ -111,7 +111,7 @@ class _SplashPageState extends State<SplashPage>
                       
                       // App Name
                       Text(
-                        'Yetenek Avcısı',
+                        AppConstants.appName,
                         style: Theme.of(context).textTheme.displayLarge?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -120,9 +120,8 @@ class _SplashPageState extends State<SplashPage>
                       
                       const SizedBox(height: 8),
                       
-                      // Tagline
                       Text(
-                        'Futbolcu Yeteneklerini Keşfet',
+                        AppConstants.appTagline,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Colors.white.withOpacity(0.9),
                         ),

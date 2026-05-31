@@ -1,0 +1,29 @@
+---
+description: Scoutiq geliştirme önceliği ve yol haritası özeti
+globs:
+  - backend/services/**
+  - backend/routers/**
+  - yetenek_avcisi/lib/**
+  - docs/PROJE_NOTLARI.md
+alwaysApply: false
+---
+
+# Geliştirme planı
+
+Tam plan ve backlog: **`docs/PROJE_NOTLARI.md`**
+
+## Tamamlanan ana hat
+
+- Slot analizi `slot_v1`, koşu OpenCV + kalite kapısı
+- **Birleşik OVR** (`combined_rating.py`): scout sayısına göre AI + topluluk
+
+## Sıradaki öncelikler
+
+1. Koşu kamera overlay (ölçüm kalitesi)
+2. MediaPipe / hibrit CV
+3. Rubrik v2, re-finalize araçları
+4. Ölçeklenince Celery/RQ — bkz. PROJE_NOTLARI § Analiz kuyruğu
+
+## Forvet
+
+Dripling tek video; çift koşu videosu yalnızca **Hız** slotlarında.

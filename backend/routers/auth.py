@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import models, schemas
 from database import get_db
-from auth import get_password_hash, verify_password, create_access_token
+from deps import get_current_user
+from auth import get_password_hash, verify_password
+from services.token_service import issue_token_response, refresh_tokens_pair, revoke_refresh_token, revoke_all_user_refresh_tokens
+from services.referral_helpers import ensure_user_referral_code, resolve_referrer_id, build_referral_links
 from email_service import send_otp_email
 import random
 import uuid
@@ -16,6 +19,26 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Authentication"])  # Prefix main.py'de tanımlı
+
+
+def _user_payload(user: models.User) -> dict:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "is_verified": user.is_verified,
+        "phone_number": user.phone_number,
+        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
+        "profile_image_url": user.profile_image_url,
+        "referral_code": user.referral_code,
+    }
+
+
+def _auth_response(db: Session, user: models.User) -> dict:
+    ensure_user_referral_code(db, user)
+    tokens = issue_token_response(db, user)
+    return {**tokens, "user": _user_payload(user)}
 
 
 def generate_otp() -> str:
@@ -87,6 +110,8 @@ def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
         except:
             pass
     
+    referrer_id = resolve_referrer_id(db, getattr(user_data, "referral_code", None))
+
     new_user = models.User(
         full_name=user_data.full_name.strip(),
         email=email,
@@ -96,7 +121,8 @@ def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
         birth_date=birth_date,
         age=user_data.age,
         is_verified=False,
-        is_active=True
+        is_active=True,
+        referred_by_user_id=referrer_id,
     )
     
     db.add(new_user)
@@ -171,25 +197,10 @@ def verify_otp(payload: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     
-    # 4. JWT Token oluştur ve DÖN
-    token = create_access_token({"sub": str(user.id), "email": user.email})
-    
-    return {
-        "message": "Doğrulama başarılı.",
-        "verified": True,
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role,
-            "is_verified": user.is_verified,
-            "phone_number": user.phone_number,
-            "birth_date": user.birth_date.isoformat() if user.birth_date else None,
-            "profile_image_url": user.profile_image_url,
-        }
-    }
+    resp = _auth_response(db, user)
+    resp["message"] = "Doğrulama başarılı."
+    resp["verified"] = True
+    return resp
 
 
 @router.post("/login")
@@ -209,113 +220,161 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Lütfen önce e-posta adresinizi doğrulayın.")
     
-    token = create_access_token({"sub": str(user.id), "email": user.email})
-    
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role,
-            "is_verified": user.is_verified,
-            "phone_number": user.phone_number,
-            "birth_date": user.birth_date.isoformat() if user.birth_date else None,
-            "profile_image_url": user.profile_image_url,
-        }
-    }
+    return _auth_response(db, user)
+
+
+@router.post("/refresh")
+def refresh_token(body: schemas.RefreshTokenRequest, db: Session = Depends(get_db)):
+    try:
+        return refresh_tokens_pair(db, body.refresh_token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Geçersiz veya süresi dolmuş oturum.")
+
+
+@router.post("/logout")
+def logout(
+    body: schemas.LogoutRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if body.refresh_token:
+        revoke_refresh_token(db, body.refresh_token)
+    else:
+        revoke_all_user_refresh_tokens(db, current_user.id)
+    return {"message": "Çıkış yapıldı."}
+
+
+@router.get("/me/referral")
+def my_referral_link(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    code = ensure_user_referral_code(db, current_user)
+    links = build_referral_links(code)
+    return {"referral_code": code, **links}
 
 
 @router.post("/social")
 def social_login(payload: dict, db: Session = Depends(get_db)):
     """
     SOSYAL GİRİŞ - Google & Apple
-    - Mevcut kullanıcı varsa giriş yap
-    - Yoksa yeni kullanıcı oluştur (is_verified=True)
+    - Mevcut kullanıcı varsa giriş yap (e-posta veya Apple provider_id)
+    - Yoksa profil tamamlama gerekli
     """
+    from services.social_auth_helpers import (
+        apple_storage_email,
+        find_social_user,
+        sanitize_display_name,
+    )
+
     provider = payload.get("provider", "").lower()
     email = payload.get("email", "").strip().lower()
     full_name = payload.get("full_name", "").strip()
     provider_id = payload.get("provider_id", "")
-    
-    if not email or not provider or not provider_id:
+
+    if not provider or not provider_id:
         raise HTTPException(
             status_code=400,
-            detail="Provider, email ve provider_id gereklidir."
+            detail="Provider ve provider_id gereklidir.",
         )
-    
-    # Sadece google ve apple destekleniyor
+
     if provider not in ["google", "apple"]:
         raise HTTPException(
             status_code=400,
-            detail="Desteklenmeyen provider. Sadece 'google' ve 'apple'."
+            detail="Desteklenmeyen provider. Sadece 'google' ve 'apple'.",
         )
-    
-    # Mevcut kullanıcıyı kontrol et
-    user = db.query(models.User).filter(models.User.email == email).first()
-    
+
+    if provider == "google" and not email:
+        raise HTTPException(status_code=400, detail="Google girişi için e-posta gereklidir.")
+
+    try:
+        storage_email = apple_storage_email(email, provider_id) if provider == "apple" else email
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Apple provider_id gerekli.")
+
+    user = find_social_user(db, provider, storage_email, provider_id)
+
     if user:
-        # ✅ Mevcut kullanıcı - sosyal login = otomatik doğrulanmış
         if not user.is_verified:
             user.is_verified = True
-            db.commit()
-            db.refresh(user)
-        token = create_access_token({"sub": str(user.id), "email": user.email})
-        return {
-            "status": "complete",
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "full_name": user.full_name,
-                "role": user.role,
-                "is_verified": True
-            }
-        }
-    else:
-        # 🆕 Yeni kullanıcı - profil tamamlama gerekli
-        return {
-            "status": "incomplete",
-            "email": email,
-            "full_name": full_name,
-            "provider": provider,
-            "provider_id": provider_id
-        }
+        if provider_id and not user.provider_id:
+            user.provider_id = provider_id
+        if provider and not user.provider:
+            user.provider = provider
+        db.commit()
+        db.refresh(user)
+        resp = _auth_response(db, user)
+        resp["status"] = "complete"
+        resp["user"]["full_name"] = sanitize_display_name(
+            user.full_name or "", user.email
+        )
+        return resp
+
+    safe_name = sanitize_display_name(full_name, storage_email, fallback="")
+    return {
+        "status": "incomplete",
+        "email": storage_email,
+        "full_name": safe_name,
+        "provider": provider,
+        "provider_id": provider_id,
+    }
 
 
 @router.post("/social/register")
 def social_register(payload: dict, db: Session = Depends(get_db)):
-    """
-    SOSYAL KAYIT - Profil tamamlama sonrası
-    - Mevcut kullanıcı varsa güncelle
-    - Yoksa yeni oluştur
-    - Her durumda is_verified=True (sosyal login = doğrulanmış)
-    """
+    """SOSYAL KAYIT - Profil tamamlama sonrası."""
+    from services.social_auth_helpers import find_social_user, sanitize_display_name
+
     email = payload.get("email", "").strip().lower()
     full_name = payload.get("full_name", "").strip()
     phone_number = payload.get("phone_number", "").strip()
     role = payload.get("role", "Futbolcu").strip()
     provider = payload.get("provider", "").strip().lower()
     provider_id = payload.get("provider_id", "")
-    
+    birth_date_raw = payload.get("birth_date")
+
     if not email:
         raise HTTPException(status_code=400, detail="E-posta gereklidir.")
-    
-    user = db.query(models.User).filter(models.User.email == email).first()
-    
+
+    if provider == "apple":
+        try:
+            from services.social_auth_helpers import apple_storage_email
+
+            email = apple_storage_email(email, provider_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Apple provider_id gerekli.")
+
+    display_name = sanitize_display_name(full_name, email, fallback="")
+    if len(display_name) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Lütfen geçerli bir ad soyad girin (en az 2 karakter).",
+        )
+
+    user = find_social_user(db, provider, email, provider_id)
+    if not user:
+        user = db.query(models.User).filter(models.User.email == email).first()
+
+    birth_date = None
+    if birth_date_raw:
+        try:
+            birth_date = datetime.fromisoformat(str(birth_date_raw).replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz doğum tarihi.")
+
     if user:
-        user.full_name = full_name or user.full_name
+        user.full_name = display_name
         user.phone_number = phone_number or user.phone_number
         user.role = role
-        user.provider = provider
-        user.provider_id = provider_id
+        user.provider = provider or user.provider
+        user.provider_id = provider_id or user.provider_id
         user.is_verified = True
         user.is_profile_complete = True
+        if birth_date:
+            user.birth_date = birth_date
     else:
         user = models.User(
-            full_name=full_name,
+            full_name=display_name,
             email=email,
             phone_number=phone_number,
             hashed_password="",
@@ -325,25 +384,16 @@ def social_register(payload: dict, db: Session = Depends(get_db)):
             is_verified=True,
             is_profile_complete=True,
             is_active=True,
+            birth_date=birth_date,
         )
         db.add(user)
-    
+
     db.commit()
     db.refresh(user)
-    
-    token = create_access_token({"sub": str(user.id), "email": user.email})
-    return {
-        "status": "complete",
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role,
-            "is_verified": True
-        }
-    }
+
+    resp = _auth_response(db, user)
+    resp["status"] = "complete"
+    return resp
 
 
 @router.post("/admin/force-verify")
@@ -372,18 +422,9 @@ def admin_force_verify(payload: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    token = create_access_token({"sub": str(user.id), "email": user.email})
-    return {
-        "message": f"{email} doğrulandı.",
-        "access_token": token,
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role,
-            "is_verified": True,
-        }
-    }
+    resp = _auth_response(db, user)
+    resp["message"] = f"{email} doğrulandı."
+    return resp
 
 
 @router.post("/admin/delete-user")

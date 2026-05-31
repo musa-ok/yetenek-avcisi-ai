@@ -11,6 +11,15 @@ class UserCreate(BaseModel):
     role: str
     birth_date: Optional[str] = None  # ISO format: "2000-05-15"
     age: Optional[int] = None
+    referral_code: Optional[str] = None
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -122,6 +131,8 @@ class CommunityRatingSummary(BaseModel):
     DEF: Optional[int] = None
     PHY: Optional[int] = None
     OVR: Optional[int] = None
+    rating_count: int = 0
+    current_user_has_rated: bool = False
 
 
 LoginResponse.model_rebuild()

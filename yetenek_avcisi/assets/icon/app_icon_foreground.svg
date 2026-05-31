@@ -1,0 +1,27 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00FF87"/>
+      <stop offset="100%" stop-color="#00CC6A"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g transform="translate(512 512)" filter="url(#glow)">
+    <circle cx="-118" cy="-8" r="118" fill="none" stroke="url(#accent)" stroke-width="28"/>
+    <circle cx="118" cy="-8" r="118" fill="none" stroke="url(#accent)" stroke-width="28"/>
+    <path d="M -36 -8 L 36 -8" stroke="url(#accent)" stroke-width="24" stroke-linecap="round"/>
+    <circle cx="-118" cy="-8" r="52" fill="none" stroke="url(#accent)" stroke-width="12"/>
+    <circle cx="118" cy="-8" r="52" fill="none" stroke="url(#accent)" stroke-width="12"/>
+    <polygon points="0,-34 9,-10 34,-10 14,4 22,30 0,16 -22,30 -14,4 -34,-10 -9,-10" fill="url(#accent)"/>
+    <path d="M -200 150 A 200 200 0 0 1 200 150" fill="none" stroke="url(#accent)" stroke-width="14" stroke-linecap="round" opacity="0.55"/>
+    <circle cx="-176" cy="150" r="10" fill="url(#accent)" opacity="0.85"/>
+    <circle cx="0" cy="62" r="10" fill="url(#accent)"/>
+    <circle cx="176" cy="150" r="10" fill="url(#accent)" opacity="0.85"/>
+  </g>
+</svg>

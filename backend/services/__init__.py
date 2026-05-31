@@ -1,0 +1,1 @@
+"""Domain / yardımcı servis katmanı."""

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:yetenek_avcisi/core/utils/social_auth_helper.dart';
 import '../app_services.dart';
 import '../main.dart';
 
@@ -34,29 +35,52 @@ class CompleteProfileScreen extends StatefulWidget {
 
 class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final TextEditingController _phoneController = TextEditingController();
+  late final TextEditingController _nameController;
+  late final bool _needsName;
   String _selectedRole = 'Futbolcu';
   bool _submitting = false;
   DateTime? _birthDate;
 
   @override
+  void initState() {
+    super.initState();
+    _needsName = SocialAuthHelper.needsManualNameEntry(widget.fullName, widget.email);
+    final initialName = SocialAuthHelper.sanitizeDisplayName(
+      fullName: widget.fullName,
+      email: widget.email,
+      fallback: '',
+    );
+    _nameController = TextEditingController(text: _needsName ? '' : initialName);
+  }
+
+  @override
   void dispose() {
     _phoneController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
-  /// Apple relay mail'i isim olarak kullanmayı engeller
-  String _displayName(String fullName, String email) {
-    if (fullName.isEmpty || email.contains('privaterelay.appleid.com') && fullName == email.split('@').first) {
-      return 'Apple hesabınız';
+  String get _providerLabel =>
+      widget.provider.toLowerCase() == 'apple' ? 'Apple' : 'Google';
+
+  String get _introText {
+    if (_needsName) {
+      return '$_providerLabel ile giriş yaptınız. Kaydı tamamlamak için adınızı ve birkaç bilgiyi girmeniz gerekiyor.';
     }
-    return fullName;
+    final name = SocialAuthHelper.sanitizeDisplayName(
+      fullName: widget.fullName,
+      email: widget.email,
+    );
+    return '$name olarak $_providerLabel ile giriş yaptınız. Kaydı tamamlamak için son birkaç bilgiye ihtiyacımız var.';
   }
 
   int _calculateAge(DateTime birthDate) {
     final today = DateTime.now();
     int age = today.year - birthDate.year;
     if (today.month < birthDate.month ||
-        (today.month == birthDate.month && today.day < birthDate.day)) age--;
+        (today.month == birthDate.month && today.day < birthDate.day)) {
+      age--;
+    }
     return age;
   }
 
@@ -83,7 +107,25 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   Future<void> _submitProfile() async {
     if (_submitting) return;
-    
+
+    final resolvedName = _needsName
+        ? _nameController.text.trim()
+        : SocialAuthHelper.sanitizeDisplayName(
+            fullName: widget.fullName,
+            email: widget.email,
+            fallback: _nameController.text.trim(),
+          );
+
+    if (resolvedName.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lütfen geçerli bir ad soyad girin (en az 2 karakter).'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
+
     final phone = _phoneController.text.trim();
     final phoneRegex = RegExp(r'^[0-9]+$');
 
@@ -108,15 +150,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     }
 
     setState(() => _submitting = true);
-    
+
     try {
-      // Sosyal kayıt ile profili tamamla
-      // Scout seçildiğinde pending_scout olarak kaydol (admin onayı gerekli)
       final roleToSend = _selectedRole == 'Scout' ? 'pending_scout' : _selectedRole;
-      
+
       final session = await BackendApi.socialRegister(
         email: widget.email,
-        fullName: widget.fullName,
+        fullName: resolvedName,
         phoneNumber: phone,
         role: roleToSend,
         provider: widget.provider,
@@ -126,7 +166,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
       if (!mounted) return;
 
-      // Sosyal giriş zaten doğrulanmış → OTP gerekmez, direkt oturum aç
       await SessionStore.save(session);
       currentAccessTokenNotifier.value = session.accessToken;
       currentUserNotifier.value = session.user;
@@ -172,83 +211,92 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       ),
       body: SafeArea(
         child: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: ListView(
-          physics: const BouncingScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24),
-          children: [
-            // Sosyal medya ikonu ve başlık
-            _buildSocialIcon(),
-            const SizedBox(height: 24),
-            
-            // Başlık
-            Text(
-              'Profilinizi Tamamlayın',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24),
+            children: [
+              _buildSocialIcon(),
+              const SizedBox(height: 24),
+              const Text(
+                'Profilinizi Tamamlayın',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            
-            // Açıklama
-            Text(
-              '${_displayName(widget.fullName, widget.email)} olarak ${widget.provider.toUpperCase()} ile giriş yaptınız. Kaydı tamamlamak için son birkaç bilgiye ihtiyacımız var.',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 15,
-                height: 1.5,
+              const SizedBox(height: 12),
+              Text(
+                _introText,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 15,
+                  height: 1.5,
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-            
-            // E-posta (Sadece görüntüleme)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: kElevatedCard,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.email_outlined, color: Colors.white.withOpacity(0.5), size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      widget.email.contains('privaterelay.appleid.com')
-                          ? 'Apple gizli e-posta (doğrulandı)'
-                          : widget.email,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 15,
+              const SizedBox(height: 32),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: kElevatedCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.email_outlined, color: Colors.white.withOpacity(0.5), size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        SocialAuthHelper.formatEmailForDisplay(widget.email),
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 15,
+                        ),
                       ),
                     ),
-                  ),
-                  Icon(Icons.check_circle, color: kPitchGreen, size: 20),
-                ],
+                    Icon(Icons.check_circle, color: kPitchGreen, size: 20),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            
-            // Hesap Türü Seçimi
-            _buildRoleSelector(),
-            const SizedBox(height: 20),
-            
-            // Doğum Tarihi
-            _buildBirthDateField(),
-            const SizedBox(height: 20),
-
-            // Telefon Numarası
-            _buildPhoneField(),
-            const SizedBox(height: 32),
-            
-            // Devam Et Butonu
-            _buildSubmitButton(),
-          ],
+              if (_needsName) ...[
+                const SizedBox(height: 20),
+                _buildNameField(),
+              ],
+              const SizedBox(height: 20),
+              _buildRoleSelector(),
+              const SizedBox(height: 20),
+              _buildBirthDateField(),
+              const SizedBox(height: 20),
+              _buildPhoneField(),
+              const SizedBox(height: 32),
+              _buildSubmitButton(),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildNameField() {
+    return Container(
+      decoration: BoxDecoration(
+        color: kElevatedCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: TextField(
+        controller: _nameController,
+        textCapitalization: TextCapitalization.words,
+        style: const TextStyle(color: Colors.white, fontSize: 16),
+        decoration: InputDecoration(
+          hintText: 'Ad Soyad *',
+          hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
+          prefixIcon: Icon(Icons.person_outline, color: Colors.white.withOpacity(0.6)),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        ),
       ),
     );
   }
@@ -256,7 +304,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   Widget _buildSocialIcon() {
     IconData icon;
     Color color;
-    
+
     switch (widget.provider.toLowerCase()) {
       case 'apple':
         icon = FontAwesomeIcons.apple;

@@ -1,0 +1,39 @@
+# Scoutiq — yerel staging (api + postgres + redis)
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: scoutiq
+      POSTGRES_PASSWORD: scoutiq
+      POSTGRES_DB: scoutiq
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: staging
+      DATABASE_URL: postgresql://scoutiq:scoutiq@postgres:5432/scoutiq
+      REDIS_URL: redis://redis:6379/0
+      AUTO_CREATE_TABLES: "true"
+      SECRET_KEY: change-me-staging-secret
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+
+volumes:
+  pgdata:

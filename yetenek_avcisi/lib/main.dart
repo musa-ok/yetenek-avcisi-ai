@@ -21,14 +21,33 @@ import 'package:yetenek_avcisi/screens/video_player_screen.dart';
 import 'package:yetenek_avcisi/screens/complete_profile_screen.dart';
 import 'package:yetenek_avcisi/screens/otp_verification_screen.dart';
 import 'package:yetenek_avcisi/services/multi_upload_service.dart';
+import 'package:yetenek_avcisi/widgets/analysis_finalize_dialog.dart';
+import 'package:yetenek_avcisi/widgets/smart_summary_card.dart';
+import 'package:yetenek_avcisi/widgets/slot_breakdown_card.dart';
+import 'package:yetenek_avcisi/widgets/combined_ovr_strip.dart';
+import 'package:yetenek_avcisi/widgets/scoutiq_logo_mark.dart';
+import 'package:yetenek_avcisi/core/deep_link/deep_link_service.dart';
+import 'package:yetenek_avcisi/core/settings/app_settings.dart';
+import 'package:yetenek_avcisi/core/utils/share_helper.dart';
+import 'package:yetenek_avcisi/core/utils/fifa_share_image.dart';
+import 'dart:async';
+import 'dart:typed_data';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:yetenek_avcisi/features/profile/presentation/pages/my_info_screen.dart';
 import 'package:yetenek_avcisi/screens/privacy_policy_screen.dart';
 import 'package:yetenek_avcisi/screens/forgot_password_screen.dart';
 import 'package:yetenek_avcisi/screens/pending_approval_screen.dart';
 import 'package:yetenek_avcisi/screens/admin_panel_screen.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:yetenek_avcisi/core/constants/app_constants.dart';
+import 'package:yetenek_avcisi/core/api/api_client.dart';
+import 'package:yetenek_avcisi/core/constants/turkish_cities.dart';
+import 'package:yetenek_avcisi/core/utils/social_auth_helper.dart';
+import 'package:yetenek_avcisi/features/product/player_compare_screen.dart';
+import 'package:yetenek_avcisi/features/product/player_profile_edit_sheet.dart';
+import 'package:yetenek_avcisi/features/product/product_screens.dart';
+import 'package:yetenek_avcisi/services/push_notification_service.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -68,11 +87,11 @@ class L10n {
   final AppLanguage lang;
   bool get en => lang == AppLanguage.en;
 
-  String get appTitle => en ? 'Talent Hunter' : 'Yetenek Avcısı';
+  String get appTitle => AppConstants.appName;
 
   String get loginSubtitle => en
-      ? 'Sign in and discover emerging talent.'
-      : 'Scout paneline giriş yap ve yeni yetenekleri analiz et.';
+      ? 'Sign in as a player or scout — manage your profile and discover talent.'
+      : 'Futbolcu veya scout hesabınla giriş yap; profilini yönet, yetenekleri keşfet.';
 
   String get password => en ? 'Password' : 'Şifre';
 
@@ -144,6 +163,19 @@ class L10n {
 
   String get statPassing => en ? 'Passing' : 'Pas';
 
+  String get statDribbling => en ? 'Dribbling' : 'Dripling';
+
+  String get statDefending => en ? 'Defending' : 'Savunma';
+
+  String get statPhysical => en ? 'Physical' : 'Fizik';
+
+  String fabUploadVideos(int count) =>
+      en ? 'Upload $count videos' : '$count Video Yükle';
+
+  String get myStatsEmptyHint => en
+      ? 'Complete a video analysis to see your stats here.'
+      : 'İstatistiklerin analiz tamamlanınca burada görünür.';
+
   String yearsOld(int age) => en ? '$age yrs' : '$age yaş';
 
   String positionLine(String position) =>
@@ -208,6 +240,22 @@ class L10n {
 
   String get tryAgain => en ? 'Retry' : 'Tekrar Dene';
 
+  String get favorites => en ? 'Favorites' : 'Favoriler';
+
+  String get myFavorites => en ? 'My favorites' : 'Favorilerim';
+
+  String get addedToFavorites =>
+      en ? 'Added to favorites' : 'Favorilere eklendi';
+
+  String get addToFavorites => en ? 'Add to favorites' : 'Favorilere ekle';
+
+  String get favoritesEmpty =>
+      en ? 'No players in favorites yet' : 'Favorilerinde henüz oyuncu yok';
+
+  String favoritesShareLink(String link) => en
+      ? '${AppConstants.appName} favorites: $link'
+      : '${AppConstants.appName} favorilerim: $link';
+
   String get notifications => en ? 'Notifications' : 'Bildirimler';
 
   String get notificationsSub => en
@@ -220,6 +268,26 @@ class L10n {
   String get mobileDataUploadSub => en
       ? 'Allow video upload without Wi‑Fi'
       : 'Wi-Fi dışında video yüklemeye izin ver';
+
+  String get notificationsEnabledSnack => en
+      ? 'Notifications on — we\'ll alert you when analysis and reports are ready.'
+      : 'Bildirimler açıldı. Analiz ve raporlar hazır olunca haber veririz.';
+
+  String get notificationsDisabledSnack => en
+      ? 'Notifications off — you won\'t get alerts on this device.'
+      : 'Bildirimler kapatıldı. Bu cihazda uyarı almayacaksın.';
+
+  String get mobileUploadEnabledSnack => en
+      ? 'You can upload videos on mobile data.'
+      : 'Mobil veri ile video yükleyebilirsin.';
+
+  String get mobileUploadDisabledSnack => en
+      ? 'Video upload on mobile data is off (Wi-Fi only).'
+      : 'Mobil veri yüklemesi kapalı — sadece Wi-Fi.';
+
+  String get mobileUploadBlockedSnack => en
+      ? 'Enable mobile data upload in Settings, or connect to Wi-Fi.'
+      : 'Mobil veride yüklemek için Ayarlar\'dan izin ver veya Wi-Fi\'ye bağlan.';
 
   String get autoAnalyze => en ? 'Automatic analysis' : 'Otomatik Analiz';
 
@@ -311,8 +379,8 @@ class L10n {
       : 'Oyuncuya mesaj sadece scout hesapları için.';
 
   String whatsAppDraft(String playerName) => en
-      ? 'Hello $playerName, reaching out from Talent Hunter.'
-      : 'Merhaba $playerName, Yetenek Avcısı üzerinden ulaşıyorum.';
+      ? 'Hello $playerName, reaching out from ${AppConstants.appName}.'
+      : 'Merhaba $playerName, ${AppConstants.appName} üzerinden ulaşıyorum.';
 
   String get playersLoadHint =>
       en ? 'Could not refresh player list.' : 'Oyuncu listesi yüklenemedi.';
@@ -358,12 +426,55 @@ class L10nScope extends InheritedWidget {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _loadSavedLanguage();
+  await PushNotificationService.initialize();
   await SessionStore.restoreIntoNotifier();
-  runApp(const YetenekAvcisiApp());
+  await PushNotificationService.syncTokenWithBackend();
+  await DeepLinkService.init();
+  currentAccessTokenNotifier.addListener(() {
+    PushNotificationService.syncTokenWithBackend();
+  });
+  runApp(const ScoutiqApp());
 }
 
-class YetenekAvcisiApp extends StatelessWidget {
-  const YetenekAvcisiApp({super.key});
+class ScoutiqApp extends StatefulWidget {
+  const ScoutiqApp({super.key});
+
+  @override
+  State<ScoutiqApp> createState() => _ScoutiqAppState();
+}
+
+class _ScoutiqAppState extends State<ScoutiqApp> {
+  StreamSubscription<DeepLinkTarget>? _deepLinkSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _deepLinkSub = DeepLinkService.stream.listen(_onDeepLink);
+  }
+
+  void _onDeepLink(DeepLinkTarget target) {
+    final nav = appNavigatorKey.currentState;
+    if (nav == null) return;
+    switch (target) {
+      case DeepLinkPlayer(:final playerId):
+        BackendApi.fetchPlayerDetail(playerId).then((detail) {
+          if (!nav.mounted) return;
+          nav.push(
+            MaterialPageRoute(
+              builder: (_) => PlayerDetailScreen(player: detail.player),
+            ),
+          );
+        }).catchError((e) => debugPrint('[DeepLink] player: $e'));
+      case DeepLinkInvite():
+        break;
+    }
+  }
+
+  @override
+  void dispose() {
+    _deepLinkSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -392,6 +503,11 @@ class YetenekAvcisiApp extends StatelessWidget {
               elevation: 0,
               centerTitle: false,
               scrolledUnderElevation: 0,
+            ),
+            snackBarTheme: const SnackBarThemeData(
+              backgroundColor: Color(0xFF2A3448),
+              contentTextStyle: TextStyle(color: Colors.white, fontSize: 14),
+              behavior: SnackBarBehavior.floating,
             ),
           ),
           builder: (context, child) =>
@@ -467,15 +583,11 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Image.asset(
-                      'assets/icon/app_icon.png',
-                      width: 110,
-                      height: 110,
-                    ),
+                    const ScoutiqLogoMark(size: 120),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Yetenek Avcısı',
-                      style: TextStyle(
+                    Text(
+                      AppConstants.appName,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -483,8 +595,8 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Yeteneğini keşfet',
+                    Text(
+                      AppConstants.appTagline,
                       style: TextStyle(
                         color: kPitchGreen,
                         fontSize: 14,
@@ -721,11 +833,19 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         );
 
-        final appleEmail = credential.email ?? '${credential.userIdentifier}@privaterelay.appleid.com';
-        final firstName = credential.givenName ?? '';
-        final lastName = credential.familyName ?? '';
-        final appleFullName = '${firstName} ${lastName}'.trim();
-        final appleProviderId = credential.userIdentifier ?? '';
+        final appleProviderId = credential.userIdentifier?.trim() ?? '';
+        if (appleProviderId.isEmpty) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Apple kimliği alınamadı. Lütfen tekrar deneyin.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+
+        final appleEmail = SocialAuthHelper.resolveAppleEmailForApi(credential);
+        final appleFullName = SocialAuthHelper.resolveAppleFullName(credential);
 
         if (!mounted) return;
 
@@ -747,8 +867,8 @@ class _LoginScreenState extends State<LoginScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => CompleteProfileScreen(
-                email: appleEmail,
-                fullName: appleFullName,
+                email: result.email ?? appleEmail,
+                fullName: result.fullName ?? appleFullName,
                 provider: 'apple',
                 providerId: appleProviderId,
               ),
@@ -1172,6 +1292,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _submitting = true);
     try {
+      final referralCode = await DeepLinkService.consumePendingInvite();
       await BackendApi.register(
         fullName: fullName,
         email: email,
@@ -1180,6 +1301,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         phoneNumber: phone,
         birthDate: _birthDate!.toIso8601String(),
         age: _calculateAge(_birthDate!),
+        referralCode: referralCode,
       );
       
       if (!mounted) return;
@@ -1302,11 +1424,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ],
         );
 
-        final appleEmail = credential.email ?? '${credential.userIdentifier}@privaterelay.appleid.com';
-        final firstName = credential.givenName ?? '';
-        final lastName = credential.familyName ?? '';
-        final appleFullName = '${firstName} ${lastName}'.trim();
-        final appleProviderId = credential.userIdentifier ?? '';
+        final appleProviderId = credential.userIdentifier?.trim() ?? '';
+        if (appleProviderId.isEmpty) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Apple kimliği alınamadı. Lütfen tekrar deneyin.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+
+        final appleEmail = SocialAuthHelper.resolveAppleEmailForApi(credential);
+        final appleFullName = SocialAuthHelper.resolveAppleFullName(credential);
 
         if (!mounted) return;
 
@@ -1334,8 +1464,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => CompleteProfileScreen(
-                email: appleEmail,
-                fullName: appleFullName,
+                email: result.email ?? appleEmail,
+                fullName: result.fullName ?? appleFullName,
                 provider: 'apple',
                 providerId: appleProviderId,
               ),
@@ -1854,6 +1984,41 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  int? _myRequiredVideoCount;
+
+  @override
+  void initState() {
+    super.initState();
+    currentUserNotifier.addListener(_onUserChanged);
+    _loadMyRequiredVideoCount();
+  }
+
+  @override
+  void dispose() {
+    currentUserNotifier.removeListener(_onUserChanged);
+    super.dispose();
+  }
+
+  void _onUserChanged() {
+    _loadMyRequiredVideoCount();
+  }
+
+  Future<void> _loadMyRequiredVideoCount() async {
+    final user = currentUserNotifier.value;
+    if (user?.role != 'Futbolcu') {
+      if (mounted) setState(() => _myRequiredVideoCount = null);
+      return;
+    }
+    try {
+      final all = await MultiUploadService.listPlayers();
+      final mine = all.where((p) => p.userId == user!.id).toList()
+        ..sort((a, b) => b.id.compareTo(a.id));
+      final count = mine.isNotEmpty ? mine.first.requiredVideoCount : null;
+      if (mounted) setState(() => _myRequiredVideoCount = count);
+    } catch (_) {
+      if (mounted) setState(() => _myRequiredVideoCount = null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1888,20 +2053,22 @@ class _MainScreenState extends State<MainScreen> {
           ),
           floatingActionButton: user.role == 'Futbolcu'
               ? FloatingActionButton.extended(
-                  onPressed: () {
-                    // YENI MULTI-UPLOAD EKRANI - Her zaman yeni analiz başlat
-                    Navigator.push(
+                  onPressed: () async {
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => MultiUploadScreen(key: UniqueKey(), forceNew: true),
                       ),
                     );
+                    _loadMyRequiredVideoCount();
                   },
                   backgroundColor: AppColors.accentGreen,
                   elevation: 0,
                   icon: const Icon(Icons.video_library, color: Color(0xFF0B0F19)),
                   label: Text(
-                    '3 Video Yükle',
+                    _myRequiredVideoCount != null && _myRequiredVideoCount! > 0
+                        ? l.fabUploadVideos(_myRequiredVideoCount!)
+                        : l.fabUpload,
                     style: const TextStyle(
                       color: Color(0xFF0B0F19),
                       fontWeight: FontWeight.w600,
@@ -1910,8 +2077,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 )
               : null,
-          floatingActionButtonLocation:
-              FloatingActionButtonLocation.centerFloat,
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _currentIndex,
             onTap: (index) => setState(() => _currentIndex = index),
@@ -2000,9 +2166,12 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
       final latest = mine.first;
       latestAnalysisNotifier.value = AnalysisResult(
         overall: latest.overallRating,
-        pace: latest.pace ?? 0,
-        finishing: latest.finishing ?? 0,
-        passing: latest.passing ?? 0,
+        pace: latest.pace,
+        finishing: latest.finishing,
+        passing: latest.passing,
+        dribbling: latest.dribbling,
+        defending: latest.defending,
+        physical: latest.strength,
         report: latest.aiSummaryReport ?? '',
       );
     } catch (_) {
@@ -2010,7 +2179,8 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
     }
   }
 
-  String _statOrDash(int? v) => v == null ? '—' : '$v';
+  String _statOrDash(int? v) =>
+      v == null || v <= 0 ? '—' : '$v';
 
   @override
   Widget build(BuildContext context) {
@@ -2028,24 +2198,50 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
             ? playerSnap.data!
             : <PlayerListItem>[];
         final loadFailed = playerSnap.hasError;
-        final carousel = players.take(12).toList();
+        final carousel = players
+            .where((p) => p.userId != widget.user.id)
+            .take(12)
+            .toList();
 
         return ValueListenableBuilder<AnalysisResult?>(
           valueListenable: latestAnalysisNotifier,
           builder: (context, latest, _) {
+            final hasStats = latest != null && latest.overall > 0;
             final stats = [
               PlayerStat(
                 title: l.ratingOverall,
                 value: _statOrDash(latest?.overall),
+                icon: Icons.emoji_events_outlined,
               ),
-              PlayerStat(title: l.statPace, value: _statOrDash(latest?.pace)),
+              PlayerStat(
+                title: l.statPace,
+                value: _statOrDash(latest?.pace),
+                icon: Icons.directions_run_rounded,
+              ),
               PlayerStat(
                 title: l.statFinishing,
                 value: _statOrDash(latest?.finishing),
+                icon: Icons.sports_soccer_rounded,
               ),
               PlayerStat(
                 title: l.statPassing,
                 value: _statOrDash(latest?.passing),
+                icon: Icons.swap_horiz_rounded,
+              ),
+              PlayerStat(
+                title: l.statDribbling,
+                value: _statOrDash(latest?.dribbling),
+                icon: Icons.control_camera_rounded,
+              ),
+              PlayerStat(
+                title: l.statDefending,
+                value: _statOrDash(latest?.defending),
+                icon: Icons.shield_outlined,
+              ),
+              PlayerStat(
+                title: l.statPhysical,
+                value: _statOrDash(latest?.physical),
+                icon: Icons.fitness_center_rounded,
               ),
             ];
 
@@ -2065,7 +2261,7 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            l.welcomeBack(widget.user.fullName),
+                            l.welcomeBack(widget.user.displayName),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 28,
@@ -2080,6 +2276,39 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                               height: 1.4,
                             ),
                           ),
+                          if (role.toLowerCase() == 'scout') ...[
+                            const SizedBox(height: 14),
+                            Wrap(
+                              spacing: 10,
+                              children: [
+                                ActionChip(
+                                  avatar: const Icon(Icons.favorite_border, size: 18, color: kPitchGreen),
+                                  label: Text(l.favorites),
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ShortlistScreen(
+                                        onOpenPlayer: (player) => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => PlayerDetailScreen(player: player),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                ActionChip(
+                                  avatar: const Icon(Icons.notifications_outlined, size: 18, color: kPitchGreen),
+                                  label: const Text('Bildirimler'),
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -2089,22 +2318,22 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                       padding: EdgeInsets.symmetric(horizontal: horizontal),
                       child: _SectionTitle(
                         title: l.dashboardPoolPreview,
-                        trailing: Text(
-                          loadFailed ? '!' : '${players.length}',
-                          style: TextStyle(
-                            color: loadFailed
-                                ? Colors.redAccent
-                                : Colors.white.withValues(alpha: 0.65),
-                            fontWeight: FontWeight.w700,
+                          trailing: Text(
+                            loadFailed ? '!' : '${players.length}',
+                            style: TextStyle(
+                              color: loadFailed
+                                  ? Colors.redAccent
+                                  : Colors.white.withValues(alpha: 0.65),
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 190,
-                      child: loadFailed
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 190,
+                        child: loadFailed
                           ? Center(
                               child: Padding(
                                 padding: EdgeInsets.symmetric(
@@ -2186,8 +2415,8 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                               separatorBuilder: (context, index) =>
                                   const SizedBox(width: 12),
                             ),
+                      ),
                     ),
-                  ),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: horizontal),
@@ -2198,12 +2427,25 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                       ),
                     ),
                   ),
+                  if (role == 'Futbolcu' && !hasStats)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 4),
+                        child: Text(
+                          l.myStatsEmptyHint,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.55),
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ),
                   SliverPadding(
                     padding: EdgeInsets.fromLTRB(
                       horizontal,
                       10,
                       horizontal,
-                      28,
+                      role == 'Futbolcu' ? 88 : 28,
                     ),
                     sliver: role == 'Futbolcu'
                         ? SliverList.separated(
@@ -2347,6 +2589,33 @@ Future<void> showExplorePlayerSheet(
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            PlayerProfileV2Card(player: player, showTitle: true),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PlayerDetailScreen(player: player),
+                    ),
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kPitchGreen,
+                  side: BorderSide(color: kPitchGreen.withValues(alpha: 0.6)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                label: const Text(
+                  'Tam profili gör',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
             if (player.aiScoutReport != null &&
                 player.aiScoutReport!.trim().isNotEmpty) ...[
               const SizedBox(height: 14),
@@ -2400,6 +2669,55 @@ Future<void> showExplorePlayerSheet(
   );
 }
 
+class _ExploreRangeFilter extends StatelessWidget {
+  const _ExploreRangeFilter({
+    required this.label,
+    required this.values,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+    required this.onChangeEnd,
+  });
+
+  final String label;
+  final RangeValues values;
+  final double min;
+  final double max;
+  final ValueChanged<RangeValues> onChanged;
+  final ValueChanged<RangeValues> onChangeEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        RangeSlider(
+          values: values,
+          min: min,
+          max: max,
+          divisions: (max - min).round(),
+          activeColor: kPitchGreen,
+          inactiveColor: Colors.white24,
+          labels: RangeLabels(
+            values.start.round().toString(),
+            values.end.round().toString(),
+          ),
+          onChanged: onChanged,
+          onChangeEnd: onChangeEnd,
+        ),
+      ],
+    );
+  }
+}
+
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
 
@@ -2409,8 +2727,17 @@ class ExploreScreen extends StatefulWidget {
 
 class _ExploreScreenState extends State<ExploreScreen> {
   final TextEditingController _searchController = TextEditingController();
+  String? _selectedCity;
   String _query = '';
   String _selectedPosition = 'Tum';
+  static const double _ageSliderMin = 14;
+  static const double _ageSliderMax = 40;
+  static const double _ovrSliderMin = 36;
+  static const double _ovrSliderMax = 99;
+
+  RangeValues _ageRange = const RangeValues(_ageSliderMin, _ageSliderMax);
+  RangeValues _ovrRange = const RangeValues(_ovrSliderMin, _ovrSliderMax);
+  bool _rising7d = false;
 
   static const List<String> _positions = [
     'Tum',
@@ -2437,26 +2764,32 @@ class _ExploreScreenState extends State<ExploreScreen> {
     super.dispose();
   }
 
-  // YENİ: AI OYUNCULARI VE ESKİ OYUNCULARI BİRLEŞTİREN FONKSİYON
-  // SADECE GERÇEK (TAM DOLU) KARTLARI GETİREN FONKSİYON
+  // AI analizi tamamlanmis oyuncular — sunucu filtreleri ile
   Future<List<PlayerListItem>> _fetchAllPlayers() async {
     try {
-      // 1. Gerçek ve tam dolu kartlar aslında buradan (eski sistemden) geliyormuş!
-      final legacyPlayers = await BackendApi.fetchPlayers();
-      
-      // 2. İçinde yanlışlıkla boş/sahte bir kayıt kalmışsa diye sadece Raporu olanları filtreliyoruz
-      final realPlayers = legacyPlayers.where((p) => 
-        p.aiScoutReport != null && 
+      final ageActive =
+          _ageRange.start > _ageSliderMin || _ageRange.end < _ageSliderMax;
+      final ovrActive =
+          _ovrRange.start > _ovrSliderMin || _ovrRange.end < _ovrSliderMax;
+
+      final players = await BackendApi.fetchPlayersWithFilters(
+        position: _selectedPosition == 'Tum' ? null : _selectedPosition,
+        minAge: ageActive ? _ageRange.start.round() : null,
+        maxAge: ageActive ? _ageRange.end.round() : null,
+        minOvr: ovrActive ? _ovrRange.start.round() : null,
+        maxOvr: ovrActive ? _ovrRange.end.round() : null,
+        city: _selectedCity,
+        rising7d: _rising7d,
+      );
+
+      return players.where((p) =>
+        p.aiScoutReport != null &&
         p.aiScoutReport!.trim().isNotEmpty &&
         p.aiScoutReport != 'Rapor oluşturulamadı'
       ).toList();
-      
-      // 3. O sahte kart üreten MultiUpload listesini çöpe attık, sadece gerçeği döndürüyoruz!
-      return realPlayers;
-      
-    } catch(e) {
+    } catch (e) {
       debugPrint('Gerçek oyuncular çekilemedi: $e');
-      return []; // Hata durumunda boş liste dön ki uygulama çökmesin
+      return [];
     }
   }
   void _onPlayersRefreshSignal() {
@@ -2534,7 +2867,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 decoration: InputDecoration(
                   hintText: l.searchHint,
                   hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: Colors.white.withValues(alpha: 0.65),
                   ),
                   prefixIcon: const Icon(Icons.search, color: kPitchGreen),
                   filled: true,
@@ -2558,6 +2891,106 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
               ),
               const SizedBox(height: 14),
+              DropdownButtonFormField<String?>(
+                value: _selectedCity,
+                isExpanded: true,
+                dropdownColor: kElevatedCard,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withValues(alpha: 0.75)),
+                decoration: InputDecoration(
+                  hintText: 'Şehir seç',
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.65)),
+                  prefixIcon: const Icon(Icons.location_city_outlined, color: kPitchGreen),
+                  filled: true,
+                  fillColor: kElevatedCard,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Colors.white12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Colors.white12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: kPitchGreen),
+                  ),
+                ),
+                items: [
+                  DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text(
+                      'Tüm şehirler',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.85)),
+                    ),
+                  ),
+                  ...TurkishCities.all.map(
+                    (city) => DropdownMenuItem<String?>(
+                      value: city,
+                      child: Text(city),
+                    ),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() => _selectedCity = value);
+                  _refresh();
+                },
+              ),
+              const SizedBox(height: 14),
+              _ExploreRangeFilter(
+                label:
+                    'Yaş: ${_ageRange.start.round()} – ${_ageRange.end.round()}',
+                values: _ageRange,
+                min: _ageSliderMin,
+                max: _ageSliderMax,
+                onChanged: (v) => setState(() => _ageRange = v),
+                onChangeEnd: (_) => _refresh(),
+              ),
+              const SizedBox(height: 10),
+              _ExploreRangeFilter(
+                label:
+                    'OVR: ${_ovrRange.start.round()} – ${_ovrRange.end.round()}',
+                values: _ovrRange,
+                min: _ovrSliderMin,
+                max: _ovrSliderMax,
+                onChanged: (v) => setState(() => _ovrRange = v),
+                onChangeEnd: (_) => _refresh(),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilterChip(
+                    label: const Text('Son 7 gün yükselen'),
+                    selected: _rising7d,
+                    onSelected: (v) {
+                      setState(() => _rising7d = v);
+                      _refresh();
+                    },
+                    labelStyle: TextStyle(
+                      color: _rising7d ? Colors.black : Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    backgroundColor: kElevatedCard,
+                    selectedColor: kPitchGreen,
+                    checkmarkColor: Colors.black,
+                    side: const BorderSide(color: Colors.white12),
+                  ),
+                  ActionChip(
+                    label: const Text('Filtrele'),
+                    onPressed: _refresh,
+                    labelStyle: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    backgroundColor: kElevatedCard,
+                    side: const BorderSide(color: Colors.white12),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -2610,8 +3043,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           l.rosterEmptyHint,
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.45),
+                            color: Colors.white.withValues(alpha: 0.78),
                             fontSize: 15,
+                            height: 1.45,
                           ),
                         ),
                       ],
@@ -2627,6 +3061,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             showExplorePlayerSheet(context, player),
                         onQuickContact: () =>
                             launchWhatsAppForPlayer(context, player),
+                        risingBadge: player.rising7d,
                       ),
                     ),
                   ),
@@ -2645,11 +3080,13 @@ class ExplorePlayerCard extends StatelessWidget {
     required this.player,
     required this.onOpenSheet,
     required this.onQuickContact,
+    this.risingBadge = false,
   });
 
   final PlayerListItem player;
   final VoidCallback onOpenSheet;
   final VoidCallback onQuickContact;
+  final bool risingBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -2714,6 +3151,21 @@ class ExplorePlayerCard extends StatelessWidget {
                             color: Colors.white.withValues(alpha: 0.7),
                           ),
                         ),
+                        if (risingBadge)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: kPitchGreen.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Son 7 gün yükselen',
+                                style: TextStyle(color: kPitchGreen, fontSize: 11, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -2767,6 +3219,18 @@ class ExplorePlayerCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _kvkkExportErrorMessage(Object e) {
+  if (e is ApiException) return e.message;
+  final raw = e.toString();
+  if (raw.contains('sharePositionOrigin')) {
+    return 'Paylaşım penceresi açılamadı. Lütfen tekrar deneyin.';
+  }
+  if (raw.contains('Not Found') || raw.contains('404')) {
+    return 'Veri export bu sunucuda henüz yok. Yerel backend veya güncel API kullanın.';
+  }
+  return 'Veri indirilemedi. Lütfen tekrar deneyin.';
 }
 
 class ClubProfileScreen extends StatelessWidget {
@@ -2833,53 +3297,52 @@ class ClubProfileScreen extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      // Profil Fotoğrafı veya Avatar
                       user.profileImageUrl != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: user.profileImageUrl!.startsWith('http')
-                              ? Image.network(
-                                  user.profileImageUrl!,
-                                  width: 52,
-                                  height: 52,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                      width: 52,
-                                      height: 52,
-                                      decoration: BoxDecoration(
-                                        color: kPitchGreen.withValues(alpha: 0.14),
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: const Icon(Icons.person, color: kPitchGreen),
-                                    ),
-                                )
-                              : Image.file(
-                                  File(user.profileImageUrl!),
-                                  width: 52,
-                                  height: 52,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                      width: 52,
-                                      height: 52,
-                                      decoration: BoxDecoration(
-                                        color: kPitchGreen.withValues(alpha: 0.14),
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: const Icon(Icons.person, color: kPitchGreen),
-                                    ),
-                                ),
-                          )
-                        : Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: kPitchGreen.withValues(alpha: 0.14),
+                          ? ClipRRect(
                               borderRadius: BorderRadius.circular(14),
+                              child: user.profileImageUrl!.startsWith('http')
+                                  ? Image.network(
+                                      user.profileImageUrl!,
+                                      width: 52,
+                                      height: 52,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          Container(
+                                        width: 52,
+                                        height: 52,
+                                        decoration: BoxDecoration(
+                                          color: kPitchGreen.withValues(alpha: 0.14),
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
+                                        child: const Icon(Icons.person, color: kPitchGreen),
+                                      ),
+                                    )
+                                  : Image.file(
+                                      File(user.profileImageUrl!),
+                                      width: 52,
+                                      height: 52,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          Container(
+                                        width: 52,
+                                        height: 52,
+                                        decoration: BoxDecoration(
+                                          color: kPitchGreen.withValues(alpha: 0.14),
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
+                                        child: const Icon(Icons.person, color: kPitchGreen),
+                                      ),
+                                    ),
+                            )
+                          : Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: kPitchGreen.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(Icons.person, color: kPitchGreen),
                             ),
-                            child: const Icon(Icons.person, color: kPitchGreen),
-                          ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -3007,6 +3470,63 @@ class ClubProfileScreen extends StatelessWidget {
                 onTap: () => _handleLogoutTap(context),
               ),
               const SizedBox(height: 10),
+              _ProfileOptionTile(
+                icon: Icons.download_rounded,
+                title: l.en ? 'Export My Data (KVKK)' : 'Verilerimi İndir (KVKK)',
+                onTap: () async {
+                  final shareOrigin = ShareHelper.originFor(context);
+                  try {
+                    final data = await BackendApi.exportMyData();
+                    final dir = await getTemporaryDirectory();
+                    final f = File(
+                      '${dir.path}/scoutiq_export_${DateTime.now().millisecondsSinceEpoch}.json',
+                    );
+                    await f.writeAsString(const JsonEncoder.withIndent('  ').convert(data));
+                    if (!context.mounted) return;
+                    await ShareHelper.shareXFiles(
+                      [XFile(f.path, mimeType: 'application/json')],
+                      context: context,
+                      text: 'Scoutiq veri export',
+                      sharePositionOrigin: shareOrigin,
+                    );
+                  } catch (e) {
+                    if (context.mounted) {
+                      final msg = _kvkkExportErrorMessage(e);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            msg,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          backgroundColor: const Color(0xFF2A3448),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              if ((currentUserNotifier.value?.role ?? '').toLowerCase() == 'scout') ...[
+                const SizedBox(height: 10),
+                _ProfileOptionTile(
+                  icon: Icons.link_rounded,
+                  title: l.en ? 'Invite Scouts' : 'Scout Davet Linki',
+                  onTap: () async {
+                    try {
+                      final ref = await BackendApi.fetchReferralLink();
+                      final text = '${ref['share_text'] ?? ref['https_link']}';
+                      if (!context.mounted) return;
+                      await ShareHelper.shareText(text, context: context);
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Davet linki alınamadı: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ],
+              const SizedBox(height: 10),
               // Hesap Silme Butonu - Apple App Store 5.1.1(v)
               _ProfileOptionTile(
                 icon: Icons.delete_forever_rounded,
@@ -3083,33 +3603,11 @@ class ClubProfileScreen extends StatelessWidget {
               String errorMsg = '';
               
               try {
-                // 🗑️ GERÇEK HESAP SİLME API ÇAĞRISI
-                final token = currentAccessTokenNotifier.value;
-                if (token != null) {
-                  final response = await http.delete(
-                    Uri.parse('https://stingray-app-g3o9y.ondigitalocean.app/users/me'),
-                    headers: {'Authorization': 'Bearer $token'},
-                  ).timeout(Duration(seconds: 30));
-                  
-                  if (response.statusCode == 200) {
-                    deleted = true;
-                    debugPrint('[Delete Account] ✅ Hesap başarıyla silindi');
-                  } else {
-                    errorMsg = 'API Hatası: ${response.statusCode}';
-                    debugPrint('[Delete Account] ❌ $errorMsg - Body: ${response.body}');
-                  }
-                } else {
-                  errorMsg = 'Token bulunamadı';
-                }
+                await BackendApi.deleteMyAccount();
+                deleted = true;
               } catch (e) {
-                errorMsg = 'Bağlantı hatası: $e';
-                debugPrint('[Delete Account] ⚠️ $errorMsg');
+                errorMsg = '$e';
               }
-              
-              // Session'ı temizle ve logout yap (silinse de silinmese de)
-              await SessionStore.clear();
-              currentAccessTokenNotifier.value = null;
-              currentUserNotifier.value = null;
               
               if (context.mounted) {
                 if (deleted) {
@@ -3151,12 +3649,10 @@ class LocalSettingsScreen extends StatefulWidget {
 }
 
 class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
-  static const _notifKey = 'settings_notifications_enabled';
-  static const _mobileUploadKey = 'settings_mobile_upload_allowed';
-
   bool _notificationsEnabled = true;
   bool _mobileUploadAllowed = false;
   bool _loading = true;
+  bool _saving = false;
   String? _loadError;
 
   @override
@@ -3167,18 +3663,17 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
 
   Future<void> _loadSettings() async {
     try {
-      final prefs = await SharedPreferences.getInstance().timeout(
-        const Duration(seconds: 4),
-      );
+      final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
 
       setState(() {
-        _notificationsEnabled = prefs.getBool(_notifKey) ?? true;
-        _mobileUploadAllowed = prefs.getBool(_mobileUploadKey) ?? false;
+        _notificationsEnabled =
+            prefs.getBool(AppSettings.notificationsKey) ?? true;
+        _mobileUploadAllowed =
+            prefs.getBool(AppSettings.mobileUploadKey) ?? false;
         _loading = false;
         _loadError = null;
       });
-      // Dil sabit Türkçe - AppLanguage.tr
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -3188,9 +3683,58 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
     }
   }
 
-  Future<void> _saveBool(String key, bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(key, value);
+  void _showSettingsSnack(String message, {bool isError = false}) {
+    if (!mounted || message.trim().isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+        ),
+        backgroundColor: isError ? Colors.redAccent : const Color(0xFF2A3448),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<void> _onNotificationsChanged(bool value) async {
+    final l = L10n(appLanguageNotifier.value);
+    setState(() {
+      _notificationsEnabled = value;
+      _saving = true;
+    });
+    try {
+      await PushNotificationService.setNotificationsEnabled(value);
+      if (!mounted) return;
+      _showSettingsSnack(
+        value ? l.notificationsEnabledSnack : l.notificationsDisabledSnack,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _notificationsEnabled = !value);
+      _showSettingsSnack(l.settingsLoadFailed, isError: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _onMobileUploadChanged(bool value) async {
+    final l = L10n(appLanguageNotifier.value);
+    setState(() => _mobileUploadAllowed = value);
+    try {
+      await AppSettings.setMobileUploadAllowed(value);
+      if (!mounted) return;
+      _showSettingsSnack(
+        value ? l.mobileUploadEnabledSnack : l.mobileUploadDisabledSnack,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _mobileUploadAllowed = !value);
+      _showSettingsSnack(l.settingsLoadFailed, isError: true);
+    }
   }
 
   @override
@@ -3250,10 +3794,7 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
                     value: _notificationsEnabled,
                     activeThumbColor: kPitchGreen,
                     activeTrackColor: kPitchGreen.withValues(alpha: 0.45),
-                    onChanged: (value) {
-                      setState(() => _notificationsEnabled = value);
-                      _saveBool(_notifKey, value);
-                    },
+                    onChanged: _saving ? null : _onNotificationsChanged,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -3264,10 +3805,7 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
                     value: _mobileUploadAllowed,
                     activeThumbColor: kPitchGreen,
                     activeTrackColor: kPitchGreen.withValues(alpha: 0.45),
-                    onChanged: (value) {
-                      setState(() => _mobileUploadAllowed = value);
-                      _saveBool(_mobileUploadKey, value);
-                    },
+                    onChanged: _onMobileUploadChanged,
                   ),
                 ),
               ],
@@ -3614,10 +4152,15 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class PlayerStat {
-  const PlayerStat({required this.title, required this.value});
+  const PlayerStat({
+    required this.title,
+    required this.value,
+    this.icon = Icons.bar_chart_rounded,
+  });
 
   final String title;
   final String value;
+  final IconData icon;
 }
 
 class PlayerStatTile extends StatelessWidget {
@@ -3643,8 +4186,8 @@ class PlayerStatTile extends StatelessWidget {
               color: kPitchGreen.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.bar_chart_rounded,
+            child: Icon(
+              stat.icon,
               color: kPitchGreen,
               size: 20,
             ),
@@ -3683,16 +4226,22 @@ class PlayerStatTile extends StatelessWidget {
 class AnalysisResult {
   const AnalysisResult({
     required this.overall,
-    required this.pace,
-    required this.finishing,
-    required this.passing,
+    this.pace,
+    this.finishing,
+    this.passing,
+    this.dribbling,
+    this.defending,
+    this.physical,
     required this.report,
   });
 
   final int overall;
-  final int pace;
-  final int finishing;
-  final int passing;
+  final int? pace;
+  final int? finishing;
+  final int? passing;
+  final int? dribbling;
+  final int? defending;
+  final int? physical;
   final String report;
 
   factory AnalysisResult.fromJson(Map<String, dynamic> json) {
@@ -3709,6 +4258,22 @@ class AnalysisResult {
       return fallback;
     }
 
+    int? readOptionalInt(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is int) return value > 0 ? value : null;
+        if (value is num) {
+          final v = value.toInt();
+          return v > 0 ? v : null;
+        }
+        if (value is String) {
+          final parsed = int.tryParse(value);
+          if (parsed != null && parsed > 0) return parsed;
+        }
+      }
+      return null;
+    }
+
     String readString(List<String> keys, String fallback) {
       for (final key in keys) {
         final value = json[key];
@@ -3721,9 +4286,12 @@ class AnalysisResult {
 
     return AnalysisResult(
       overall: readInt(['overall_rating', 'genel_reyting', 'overall', 'ovr'], 0),
-      pace: readInt(['pace', 'hiz', 'speed'], 0),
-      finishing: readInt(['finishing', 'bitiricilik'], 0),
-      passing: readInt(['passing', 'pas'], 0),
+      pace: readOptionalInt(['pace', 'hiz', 'speed', 'pac']),
+      finishing: readOptionalInt(['finishing', 'bitiricilik', 'sho']),
+      passing: readOptionalInt(['passing', 'pas']),
+      dribbling: readOptionalInt(['dribbling', 'dri']),
+      defending: readOptionalInt(['defending', 'def']),
+      physical: readOptionalInt(['strength', 'physical', 'phy']),
       report: readString(['ai_summary_report', 'scout_raporu', 'report'], reportFallback),
     );
   }
@@ -4369,23 +4937,31 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
   Future<void> _startAnalysisForPlayer(MultiVideoPlayer player) async {
     try {
       // Analiz başlat
-      final finalizedPlayer = await MultiUploadService.finalizePlayer(player.id);
-      
-      if (mounted) {
-        _showNotification('✅ Analiz tamamlandı!', Colors.green);
-        _loadMyPlayers(); // Listeyi yenile
-        
-        // Detay sayfasına git
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PlayerStatsScreen(
-              player: finalizedPlayer,
-              onAnalysisComplete: _loadMyPlayers,
-            ),
-          ),
+      final result = await MultiUploadService.finalizePlayer(player.id);
+
+      if (!mounted) return;
+      if (!result.success) {
+        await showAnalysisFinalizeDialog(
+          context: context,
+          result: result,
+          onRetry: () => _startAnalysisForPlayer(player),
+          onAnalysisComplete: _loadMyPlayers,
         );
+        return;
       }
+
+      _showNotification('✅ Analiz tamamlandı!', Colors.green);
+      _loadMyPlayers();
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PlayerStatsScreen(
+            player: result.player,
+            onAnalysisComplete: _loadMyPlayers,
+          ),
+        ),
+      );
     } catch (e) {
       _showNotification('❌ Analiz başlatılamadı: $e', Colors.red);
     }
@@ -4403,8 +4979,7 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
   }
 
   Future<bool> _shouldShowNotification() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('settings_notifications_enabled') ?? true;
+    return AppSettings.areNotificationsEnabled();
   }
 
   Widget _buildCircularScore(int score, Color color) {
@@ -4837,20 +5412,51 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
     _loadWatchedPlayers();
   }
 
+  MultiVideoPlayer _playerFromFavorite(PlayerListItem p) {
+    return MultiVideoPlayer(
+      id: p.id,
+      userId: p.userId ?? 0,
+      name: p.name,
+      age: p.age,
+      position: p.position,
+      positionCode: '',
+      overallRating: p.overallRating,
+      averageRating: 0,
+      completionPercentage: 100,
+      isComplete: true,
+      videos: const [],
+      skillScores: const {},
+      aiStrengths: const [],
+      aiImprovements: const [],
+    );
+  }
+
   Future<void> _loadWatchedPlayers() async {
     try {
-      final players = await MultiUploadService.listPlayers();
       final myId = currentUserNotifier.value?.id ?? 0;
       final role = (currentUserNotifier.value?.role ?? '').toLowerCase();
-      // Sadece kendi oyuncularımı (Futbolcu) veya puan verdiğim oyuncuları (Scout) göster
-      final myPlayers = players.where((p) {
-        if (role == 'scout') {
-          // Scout için: şimdilik tüm tamamlanmış (ileride sadece puanladıkları)
-          return p.isComplete;
+
+      if (role == 'scout') {
+        final lists = await BackendApi.fetchMyShortlists();
+        final seen = <int>{};
+        final favorites = <PlayerListItem>[];
+        for (final sl in lists) {
+          for (final item in sl.items) {
+            final p = item.player;
+            if (p != null && seen.add(p.id)) favorites.add(p);
+          }
         }
-        // Futbolcu için: sadece kendi kayıtlarım
-        return p.userId == myId && p.isComplete;
-      }).toList();
+        setState(() {
+          watchedPlayers = favorites.map(_playerFromFavorite).toList();
+          isLoading = false;
+        });
+        return;
+      }
+
+      final players = await MultiUploadService.listPlayers();
+      final myPlayers = players
+          .where((p) => p.userId == myId && p.isComplete)
+          .toList();
 
       setState(() {
         watchedPlayers = myPlayers;
@@ -4907,11 +5513,14 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
           ),
           SizedBox(height: 8),
           Text(
-            'İlginizi çeken oyuncuları keşfedin',
+            (currentUserNotifier.value?.role ?? '').toLowerCase() == 'scout'
+                ? 'Favorilere eklediğiniz oyuncular burada görünür'
+                : 'Analizi tamamlanan profilleriniz burada listelenir',
             style: TextStyle(
               color: AppColors.textMuted,
               fontSize: 14,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -5032,10 +5641,19 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
       // Sadece kendi kayıtlarımı göster
       final myCompleted = players.where((p) {
         if (role == 'scout') {
-          return p.isComplete; // Scout için tüm tamamlanmış (ileride sadece izledikleri)
+          return p.analysisCompleted ||
+              p.isComplete ||
+              p.analysisFailed ||
+              p.analysisProcessing;
         }
-        return p.userId == myId && p.isComplete;
-      }).toList();
+        return p.userId == myId &&
+            (p.isComplete || p.analysisStatus != null);
+      }).toList()
+        ..sort((a, b) {
+          final da = a.updatedAt ?? a.createdAt ?? '';
+          final db = b.updatedAt ?? b.createdAt ?? '';
+          return db.compareTo(da);
+        });
 
       setState(() {
         analyzedPlayers = myCompleted;
@@ -5079,6 +5697,39 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                     return _buildAnalysisCard(player);
                   },
                 ),
+    );
+  }
+
+  String _formatAnalysisDate(String iso) {
+    try {
+      final d = DateTime.parse(iso).toLocal();
+      return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year} '
+          '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  Widget _analysisStatusChip(MultiVideoPlayer player) {
+    final (label, color) = switch (player.analysisStatus) {
+      'completed' => ('Tamamlandı', AppColors.accentGreen),
+      'failed' => ('Başarısız', AppColors.error),
+      'processing' || 'pending' => ('İşleniyor', AppColors.accentBlue),
+      _ when player.isComplete && player.overallRating > 0 =>
+        ('Tamamlandı', AppColors.accentGreen),
+      _ => ('Hazır', AppColors.textMuted),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+      ),
     );
   }
 
@@ -5174,6 +5825,18 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  if (player.updatedAt != null) ...[
+                    SizedBox(height: 4),
+                    Text(
+                      _formatAnalysisDate(player.updatedAt!),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                  SizedBox(height: 6),
+                  _analysisStatusChip(player),
                   if (player.aiSummaryReport != null) ...[
                     SizedBox(height: 8),
                     Text(
@@ -5218,18 +5881,22 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
   bool _isError = false;
   final GlobalKey _fifaCardKey = GlobalKey();
   late PlayerRatingSummary _ratingSummary;
+  late PlayerListItem _player;
+  List<PlayerListItem> _comparePool = [];
   bool _isSubmittingRating = false;
   bool _isSharingCard = false;
   List<String> _allVideoUrls = [];
   List<ScoutRating> _scoutRatings = [];
   bool _alreadyRated = false;
+  int _ratingCount = 0;
 
   @override
   void initState() {
     super.initState();
-    debugPrint('[CARD] Player: ${widget.player.name}, ID: ${widget.player.id}');
-    debugPrint('[CARD] Player pac=${widget.player.pac} sho=${widget.player.sho} pas=${widget.player.pas}');
-    _ratingSummary = PlayerRatingSummary.fromMultiVideoPlayer(widget.player);
+    _player = widget.player;
+    debugPrint('[CARD] Player: ${_player.name}, ID: ${_player.id}');
+    debugPrint('[CARD] Player pac=${_player.pac} sho=${_player.sho} pas=${_player.pas}');
+    _ratingSummary = PlayerRatingSummary.fromMultiVideoPlayer(_player);
     debugPrint('[CARD] RatingSummary: pac=${_ratingSummary.pac} sho=${_ratingSummary.sho} pas=${_ratingSummary.pas}');
     // Kullanıcının yüklediği gerçek video URL'sini kullan
     String videoUrl;
@@ -5261,55 +5928,82 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     _loadPlayerRatings();
     _loadAllVideoUrls();
     _loadScoutRatings();
+    _loadEnrichedDetail();
+  }
+
+  Future<void> _loadEnrichedDetail() async {
+    try {
+      final detail = await BackendApi.fetchPlayerDetail(_player.id);
+      final pool = await BackendApi.fetchPlayers();
+      if (!mounted) return;
+      setState(() {
+        _player = detail.player;
+        _comparePool = pool;
+        _ratingSummary = detail.rating;
+        _alreadyRated = detail.rating.currentUserHasRated;
+        _ratingCount = detail.rating.ratingCount;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _addToShortlist() async {
+    final role = (currentUserNotifier.value?.role ?? '').trim().toLowerCase();
+    if (role != 'scout') return;
+    try {
+      final lists = await BackendApi.fetchMyShortlists();
+      final id = lists.isNotEmpty ? lists.first.id : (await BackendApi.fetchMyShortlists()).first.id;
+      await BackendApi.addToShortlist(shortlistId: id, playerId: _player.id, source: _player.source);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            L10nScope.of(context).addedToFavorites,
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF2A3448),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   Future<void> _loadScoutRatings() async {
     try {
-      final res = await http.get(
-        Uri.parse('$kApiBaseUrl/players/detail/${widget.player.id}'),
-        headers: {'Accept': 'application/json'},
-      ).timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final rawList = (data['scout_ratings'] as List? ?? []);
-        final ratings = rawList.map((r) => ScoutRating(
-          scoutName: r['scout_name'] ?? '',
-          score: (r['score'] as num?)?.toInt() ?? 0,
-        )).toList();
-        final currentUserId = currentUserNotifier.value?.id;
-        // Mevcut scout'un daha önce puan verip vermediğini kontrol et
-        final myRating = currentUserId != null
-            ? rawList.any((r) => r['reviewer_id'] == currentUserId)
-            : false;
-        if (mounted) {
-          setState(() {
-            _scoutRatings = ratings;
-            _alreadyRated = myRating;
-          });
-        }
+      final res = await ApiClient.get('/players/detail/${_player.id}');
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final rawList = (data['scout_ratings'] as List? ?? []);
+      final ratings = rawList.map((r) => ScoutRating.fromJson(Map<String, dynamic>.from(r as Map))).toList();
+      final currentUserId = currentUserNotifier.value?.id;
+      final myRating = currentUserId != null
+          ? rawList.any((r) => (r as Map)['reviewer_id'] == currentUserId || (r as Map)['is_mine'] == true)
+          : false;
+      if (mounted) {
+        setState(() {
+          _scoutRatings = ratings;
+          _alreadyRated = myRating;
+        });
       }
     } catch (_) {}
   }
 
   Future<void> _loadAllVideoUrls() async {
     try {
-      final res = await http.get(
-        Uri.parse('$kApiBaseUrl/players/multivideo/${widget.player.id}'),
-        headers: {'Accept': 'application/json'},
-      ).timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final videos = (data['videos'] as List? ?? []);
-        final urls = videos
-            .where((v) => v['url'] != null && (v['url'] as String).isNotEmpty)
-            .map<String>((v) {
-              final raw = v['url'] as String;
-              return raw.startsWith('http') ? raw : '$kApiBaseUrl$raw';
-            })
-            .toList();
-        if (mounted && urls.isNotEmpty) {
-          setState(() => _allVideoUrls = urls);
-        }
+      final res = await ApiClient.get('/players/multivideo/${_player.id}');
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final videos = (data['videos'] as List? ?? []);
+      final urls = videos
+          .where((v) => v['url'] != null && (v['url'] as String).isNotEmpty)
+          .map<String>((v) {
+            final raw = v['url'] as String;
+            return raw.startsWith('http') ? raw : '$kApiBaseUrl$raw';
+          })
+          .toList();
+      if (mounted && urls.isNotEmpty) {
+        setState(() => _allVideoUrls = urls);
       }
     } catch (_) {}
   }
@@ -5323,7 +6017,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
   Future<void> _loadPlayerRatings() async {
     try {
       final summary = await BackendApi.fetchPlayerRatingSummary(
-        widget.player.id,
+        _player.id,
       );
       if (!mounted) return;
       setState(() {
@@ -5336,7 +6030,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           def: summary.def,
           phy: summary.phy,
           profileImageUrl:
-              summary.profileImageUrl ?? widget.player.profileImageUrl,
+              summary.profileImageUrl ?? _player.profileImageUrl,
         );
       });
     } catch (_) {
@@ -5346,11 +6040,20 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
 
   Future<void> _openRateDialog() async {
     final role = (currentUserNotifier.value?.role ?? '').trim().toLowerCase();
+    if (role == 'pending_scout') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Scout hesabınız henüz onaylanmadı. Puan vermek için admin onayını bekleyin.'),
+        ),
+      );
+      return;
+    }
     if (role != 'scout') {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Sadece Scout hesaplari puan verebilir.'),
+          content: Text('Sadece onaylı Scout hesapları puan verebilir.'),
         ),
       );
       return;
@@ -5493,8 +6196,8 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                                   setState(() => _isSubmittingRating = true);
                                   try {
                                     final result = await BackendApi.ratePlayer(
-                                      playerId: widget.player.id,
-                                      source: widget.player.source,
+                                      playerId: _player.id,
+                                      source: _player.source,
                                       payload: PlayerRatingPayload(
                                         pac: pac,
                                         sho: sho,
@@ -5625,13 +6328,34 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(
-                      r.scoutName,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            r.scoutName,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (r.isMine) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: kPitchGreen.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: kPitchGreen.withValues(alpha: 0.4)),
+                            ),
+                            child: const Text(
+                              'Sizin puanınız',
+                              style: TextStyle(color: kPitchGreen, fontSize: 10, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                   Container(
@@ -5680,24 +6404,53 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
       if (byteData == null) {
         throw Exception('Kart goruntusu olusturulamadi.');
       }
-      final bytes = byteData.buffer.asUint8List();
-      final dir = await getTemporaryDirectory();
-      final file = File(
-        '${dir.path}/fifa_card_player_${widget.player.id}_${DateTime.now().millisecondsSinceEpoch}.png',
-      );
-      await file.writeAsBytes(bytes);
+      final rawBytes = byteData.buffer.asUint8List();
+      final watermarked = await FifaShareImage.addWatermark(rawBytes);
+      if (!mounted) return;
 
-      // 🛠️ iOS'ta sharePositionOrigin zorunlu - ekran merkezini kullan
+      final choice = await showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: kElevatedCard,
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.crop_square, color: kPitchGreen),
+                title: const Text('Kare paylaş (Instagram / WhatsApp)'),
+                onTap: () => Navigator.pop(ctx, 'square'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.phone_iphone, color: kPitchGreen),
+                title: const Text('Story formatı (9:16)'),
+                onTap: () => Navigator.pop(ctx, 'story'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (choice == null || !mounted) return;
+
+      final dir = await getTemporaryDirectory();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      Uint8List shareBytes = watermarked;
+      if (choice == 'story') {
+        shareBytes = await FifaShareImage.toStoryFormat(watermarked);
+      }
+      final file = File('${dir.path}/fifa_share_${_player.id}_$ts.png');
+      await file.writeAsBytes(shareBytes);
+
       final screenSize = MediaQuery.of(context).size;
       final shareOrigin = Rect.fromCenter(
         center: Offset(screenSize.width / 2, screenSize.height / 2),
         width: 100,
         height: 100,
       );
+      final deepLink = 'yetenekavcisi://player/${_player.id}';
 
-      await Share.shareXFiles([
-        XFile(file.path, mimeType: 'image/png'),
-      ], text: '${widget.player.name} FIFA karti',
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'image/png')],
+        text: '${_player.name} · Scoutiq\n$deepLink',
         sharePositionOrigin: shareOrigin,
       );
     } catch (e) {
@@ -5714,28 +6467,47 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l = L10nScope.of(context);
-    final p = widget.player;
+    final p = _player;
     final isScout =
         (currentUserNotifier.value?.role ?? '').trim().toLowerCase() == 'scout';
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          l.tabProfile,
+          p.name,
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.compare_arrows),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PlayerCompareScreen(
+                  playerA: p,
+                  allPlayers: _comparePool,
+                ),
+              ),
+            ),
+          ),
+          if (isScout)
+            IconButton(
+              icon: const Icon(Icons.favorite_border),
+              tooltip: L10nScope.of(context).addToFavorites,
+              onPressed: _addToShortlist,
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            if (isScout) ...[
             Align(
               alignment: Alignment.centerRight,
               child: OutlinedButton.icon(
-              onPressed:
-                  (_isSubmittingRating || !isScout || _alreadyRated) ? null : _openRateDialog,
+              onPressed: _isSubmittingRating ? null : _openRateDialog,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kPitchGreen,
                   side: BorderSide(color: kPitchGreen.withValues(alpha: 0.7)),
@@ -5746,12 +6518,47 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                 ),
                 icon: Icon(_alreadyRated ? Icons.check_circle_rounded : Icons.star_rate_rounded),
                 label: Text(
-                  _alreadyRated ? 'Puanlandı ✓' : 'Puan Ver',
+                  _alreadyRated ? 'Puanı Güncelle' : 'Puan Ver',
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
             ),
+            if (_alreadyRated)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.history,
+                        size: 14,
+                        color: Colors.white.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Bu oyuncuya daha önce puan verdiniz',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (_ratingCount > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Topluluk puanı: $_ratingCount scout değerlendirmesi',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 13),
+                ),
+              ),
             const SizedBox(height: 12),
+            ] else
+              const SizedBox(height: 4),
             Row(
               children: [
                 Hero(
@@ -5790,7 +6597,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                         ),
                       ),
                       Text(
-                        "${p.position} • ${l.yearsOld(p.age)}",
+                        "${p.position} • ${L10nScope.of(context).yearsOld(p.age)}",
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.6),
                           fontSize: 16,
@@ -5808,6 +6615,13 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               child: FifaCardWidget(
                 player: p,
               ),
+            ),
+            const SizedBox(height: 10),
+            CombinedOvrStrip(
+              aiOvr: p.aiOvr ?? p.overallRating,
+              displayOvr: p.overallRating,
+              communityOvr: p.communityOvr,
+              scoutCount: p.scoutCountForRating,
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -5841,9 +6655,19 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            PlayerProfileV2Section(
+              player: p,
+              canEdit: currentUserNotifier.value?.id != null &&
+                  p.userId != null &&
+                  currentUserNotifier.value!.id == p.userId,
+              onUpdated: (updated) => setState(() => _player = updated),
+            ),
+            const SizedBox(height: 16),
+            ScoutNotesSection(playerId: p.id, source: p.source),
+            const SizedBox(height: 20),
             Text(
-              l.scoutNote,
+              L10nScope.of(context).scoutNote,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -5859,7 +6683,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                 border: Border.all(color: Colors.white10),
               ),
               child: Text(
-                p.aiScoutReport ?? l.reportNotReady,
+                p.aiScoutReport ?? L10nScope.of(context).reportNotReady,
                 style: const TextStyle(
                   color: Colors.white70,
                   height: 1.5,
@@ -5867,6 +6691,17 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                 ),
               ),
             ),
+            if (p.source == 'multivideo') ...[
+              if (p.slotBreakdown.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                SlotBreakdownCard(
+                  breakdown: p.slotBreakdown,
+                  analysisVersion: p.analysisVersion,
+                ),
+              ],
+              const SizedBox(height: 16),
+              SmartSummaryCard(playerId: p.id),
+            ],
             const SizedBox(height: 20),
             // Scout Değerlendirmeleri kartı
             _buildScoutRatingsCard(_scoutRatings.isNotEmpty ? _scoutRatings : p.scoutRatings),
@@ -5876,7 +6711,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                 final urls = _allVideoUrls.isNotEmpty
                     ? _allVideoUrls
                     : () {
-                        final rawUrl = widget.player.videoUrl;
+                        final rawUrl = _player.videoUrl;
                         if (rawUrl == null || rawUrl.isEmpty) return <String>[];
                         final u = rawUrl.startsWith('http') ? rawUrl : '$kApiBaseUrl$rawUrl';
                         return [u];
@@ -5887,7 +6722,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                   MaterialPageRoute(
                     builder: (_) => FullscreenMultiVideoPlayer(
                       videoUrls: urls,
-                      playerName: widget.player.name,
+                      playerName: _player.name,
                     ),
                   ),
                 );
@@ -5924,7 +6759,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
             ),
             const SizedBox(height: 32),
             GlowPrimaryButton(
-              label: l.contactPlayer,
+              label: L10nScope.of(context).contactPlayer,
               onTap: () => launchWhatsAppForPlayer(context, p),
             ),
             const SizedBox(height: 40),
@@ -6891,15 +7726,79 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _heightController = TextEditingController();
+  final _weightController = TextEditingController();
+  final _clubController = TextEditingController();
+  final _clubHistoryController = TextEditingController();
   String _selectedRole = 'Futbolcu';
-  File? _profileImage; // Profil fotoğrafı
+  String? _selectedCity;
+  String _preferredFoot = 'Sağ';
+  int? _playerId;
+  File? _profileImage;
   bool _isLoading = false;
+  bool _loadingFutbolProfile = false;
   DateTime? _birthDate;
+
+  static const _footOptions = ['Sol', 'Sağ', 'İkisi'];
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _loadFutbolProfile();
+  }
+
+  String _footFromApi(String? value) {
+    switch (value) {
+      case 'Sol':
+        return 'Sol';
+      case 'Sag':
+        return 'Sağ';
+      case 'Ikisi':
+        return 'İkisi';
+      default:
+        return 'Sağ';
+    }
+  }
+
+  String _footToApi(String value) {
+    switch (value) {
+      case 'Sol':
+        return 'Sol';
+      case 'Sağ':
+        return 'Sag';
+      case 'İkisi':
+        return 'Ikisi';
+      default:
+        return 'Sag';
+    }
+  }
+
+  Future<void> _loadFutbolProfile() async {
+    final user = currentUserNotifier.value;
+    if (user?.role != 'Futbolcu') return;
+
+    setState(() => _loadingFutbolProfile = true);
+    try {
+      final data = await BackendApi.fetchMyMultivideoProfile();
+      if (!mounted || data == null) return;
+
+      setState(() {
+        _playerId = data['player_id'] as int?;
+        _selectedCity = data['city'] as String?;
+        final height = data['height_cm'];
+        final weight = data['weight_kg'];
+        _heightController.text = height == null ? '' : '$height';
+        _weightController.text = weight == null ? '' : '$weight';
+        _clubController.text = '${data['club_name'] ?? ''}'.trim();
+        _clubHistoryController.text = '${data['club_history'] ?? ''}'.trim();
+        _preferredFoot = _footFromApi(data['preferred_foot'] as String?);
+      });
+    } catch (e) {
+      debugPrint('Futbol profili yuklenemedi: $e');
+    } finally {
+      if (mounted) setState(() => _loadingFutbolProfile = false);
+    }
   }
 
   void _loadUserData() {
@@ -6978,6 +7877,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _fullNameController.dispose();
     _phoneController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
+    _clubController.dispose();
+    _clubHistoryController.dispose();
     super.dispose();
   }
 
@@ -6999,6 +7902,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         profileImageUrl: profileImageUrl,
         birthDate: _birthDate?.toIso8601String(),
       );
+
+      final role = currentUserNotifier.value?.role ?? updatedUser.role;
+      if (role == 'Futbolcu') {
+        final height = int.tryParse(_heightController.text.trim());
+        final weight = int.tryParse(_weightController.text.trim());
+        final playerData = await BackendApi.updateMyMultivideoProfile({
+          'city': _selectedCity,
+          'club_name': _clubController.text.trim().isEmpty ? null : _clubController.text.trim(),
+          'club_history':
+              _clubHistoryController.text.trim().isEmpty ? null : _clubHistoryController.text.trim(),
+          'preferred_foot': _footToApi(_preferredFoot),
+          'height_cm': height,
+          'weight_kg': weight,
+        });
+        _playerId = playerData['player_id'] as int?;
+      }
 
       // Global state'i güncelle ve kalıcı olarak kaydet
       currentUserNotifier.value = updatedUser;
@@ -7042,7 +7961,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = currentUserNotifier.value;
-    final l = L10nScope.of(context);
 
     return Scaffold(
       backgroundColor: kScaffoldDark,
@@ -7051,7 +7969,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         elevation: 0,
         title: const Text(
           'Profili Düzenle',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.5),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios),
@@ -7133,90 +8051,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 28),
 
-                // Ad Soyad
-                _buildTextField(
-                  controller: _fullNameController,
-                  label: 'Ad Soyad',
-                  icon: Icons.person_outline,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Ad soyad gereklidir';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
+                if (user?.role == 'Futbolcu') ...[
+                  _buildFutbolProfileSection(),
+                  const SizedBox(height: 28),
+                  _buildSectionHeader('Hesap Bilgileri', Icons.person_outline),
+                  const SizedBox(height: 16),
+                ],
 
-                // E-posta (Salt Okunur)
-                _buildReadOnlyField(
-                  label: 'E-posta',
-                  value: user?.email ?? '',
-                  icon: Icons.email_outlined,
-                ),
-                const SizedBox(height: 20),
+                _buildAccountFields(),
 
-                // Telefon
-                _buildTextField(
-                  controller: _phoneController,
-                  label: 'Telefon Numarası',
-                  icon: Icons.phone_outlined,
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 20),
-
-                // Doğum Tarihi
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Doğum Tarihi',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: _selectBirthDate,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        decoration: BoxDecoration(
-                          color: kElevatedCard,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.cake_rounded,
-                              color: _birthDate != null ? kPitchGreen : Colors.white54,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _birthDate != null
-                                    ? '${_birthDate!.day.toString().padLeft(2, '0')}.${_birthDate!.month.toString().padLeft(2, '0')}.${_birthDate!.year}  (${_calculateAge(_birthDate!)} yaş)'
-                                    : 'Seçmek için tıklayın',
-                                style: TextStyle(
-                                  color: _birthDate != null ? Colors.white : Colors.white38,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ),
-                            const Icon(Icons.calendar_month_rounded, color: Colors.white38, size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 40),
 
-                // Kaydet Butonu
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -7256,12 +8103,278 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: kPitchGreen, size: 22),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFutbolProfileSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.sports_soccer, color: kPitchGreen, size: 22),
+            const SizedBox(width: 8),
+            const Text(
+              'Futbol Profili',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (_loadingFutbolProfile) ...[
+              const SizedBox(width: 12),
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: kPitchGreen),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildCityDropdown(),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: _buildTextField(
+                controller: _heightController,
+                label: 'Boy (cm)',
+                icon: Icons.height,
+                keyboardType: TextInputType.number,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildTextField(
+                controller: _weightController,
+                label: 'Kilo (kg)',
+                icon: Icons.monitor_weight_outlined,
+                keyboardType: TextInputType.number,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _buildTextField(
+          controller: _clubController,
+          label: 'Kulüp',
+          icon: Icons.shield_outlined,
+        ),
+        const SizedBox(height: 20),
+        _buildFootDropdown(),
+        const SizedBox(height: 20),
+        _buildTextField(
+          controller: _clubHistoryController,
+          label: 'Kulüp geçmişi',
+          icon: Icons.history_edu,
+          maxLines: 3,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCityDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Şehir',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: kElevatedCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButtonFormField<String?>(
+              value: _selectedCity,
+              isExpanded: true,
+              dropdownColor: kElevatedCard,
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withValues(alpha: 0.75)),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.location_city_outlined, color: kPitchGreen),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                hintText: 'Şehir seçin',
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+              ),
+              items: [
+                DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text(
+                    'Belirtilmedi',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+                  ),
+                ),
+                ...TurkishCities.all.map(
+                  (city) => DropdownMenuItem<String?>(value: city, child: Text(city)),
+                ),
+              ],
+              onChanged: (value) => setState(() => _selectedCity = value),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFootDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ayak tercihi',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: kElevatedCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButtonFormField<String>(
+              value: _preferredFoot,
+              isExpanded: true,
+              dropdownColor: kElevatedCard,
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withValues(alpha: 0.75)),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.directions_run_outlined, color: kPitchGreen),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              ),
+              items: _footOptions
+                  .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _preferredFoot = v);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAccountFields() {
+    final user = currentUserNotifier.value;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTextField(
+          controller: _fullNameController,
+          label: 'Ad Soyad',
+          icon: Icons.person_outline,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Ad soyad gereklidir';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 20),
+        _buildReadOnlyField(
+          label: 'E-posta',
+          value: user?.email ?? '',
+          icon: Icons.email_outlined,
+        ),
+        const SizedBox(height: 20),
+        _buildTextField(
+          controller: _phoneController,
+          label: 'Telefon Numarası',
+          icon: Icons.phone_outlined,
+          keyboardType: TextInputType.phone,
+        ),
+        const SizedBox(height: 20),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Doğum Tarihi',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: _selectBirthDate,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                decoration: BoxDecoration(
+                  color: kElevatedCard,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.cake_rounded,
+                      color: _birthDate != null ? kPitchGreen : Colors.white54,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _birthDate != null
+                            ? '${_birthDate!.day.toString().padLeft(2, '0')}.${_birthDate!.month.toString().padLeft(2, '0')}.${_birthDate!.year}  (${_calculateAge(_birthDate!)} yaş)'
+                            : 'Seçmek için tıklayın',
+                        style: TextStyle(
+                          color: _birthDate != null ? Colors.white : Colors.white38,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.calendar_month_rounded, color: Colors.white38, size: 18),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    int maxLines = 1,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -7285,6 +8398,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             controller: controller,
             keyboardType: keyboardType,
             validator: validator,
+            maxLines: maxLines,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               prefixIcon: Icon(icon, color: kPitchGreen),
@@ -7329,7 +8443,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             readOnly: true,
             enabled: false,
             style: TextStyle(
-              color: Colors.grey.withValues(alpha: 0.6),
+              color: Colors.white.withValues(alpha: 0.85),
               fontSize: 15,
             ),
             decoration: InputDecoration(
@@ -7347,7 +8461,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Text(
           'E-posta adresi değiştirilemez',
           style: TextStyle(
-            color: Colors.grey.withValues(alpha: 0.5),
+            color: Colors.white.withValues(alpha: 0.55),
             fontSize: 12,
           ),
         ),
@@ -7401,3 +8515,5 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 }
+
+

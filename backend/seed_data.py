@@ -1,5 +1,6 @@
 from database import SessionLocal
 import models
+import models_multivideo  # noqa: F401 — SQLAlchemy mapper (User.multivideo_players)
 import auth
 
 
@@ -19,16 +20,45 @@ def seed():
                 email=scout_email,
                 hashed_password=auth.get_password_hash("sifre123"),
                 role="Scout",
-                phone_number="+905551112233"
+                phone_number="+905551112233",
+                is_verified=True,
+                is_active=True,
             )
             db.add(new_scout)
             db.commit()
             print("✅ Scout hesabı oluşturuldu! Giriş: scout@avci.com / Şifre: sifre123")
         else:
             db_scout.role = "Scout"
+            db_scout.is_verified = True
+            db_scout.is_active = True
             db_scout.hashed_password = auth.get_password_hash("sifre123")
             db.commit()
-            print("⚡ Scout hesabı güncellendi (scout@avci.com).")
+            print("⚡ Scout hesabı güncellendi (scout@avci.com / sifre123, doğrulanmış).")
+
+        # ==========================================
+        # 1b. ADMIN HESABI (staging / dev)
+        # ==========================================
+        admin_email = "admin@scoutiq.local"
+        db_admin = db.query(models.User).filter(models.User.email == admin_email).first()
+        if not db_admin:
+            db_admin = models.User(
+                full_name="Scoutiq Admin",
+                email=admin_email,
+                hashed_password=auth.get_password_hash("admin123"),
+                role="admin",
+                phone_number="+905550000001",
+                is_verified=True,
+                is_active=True,
+            )
+            db.add(db_admin)
+            db.commit()
+            print("✅ Admin: admin@scoutiq.local / admin123")
+        else:
+            db_admin.role = "admin"
+            db_admin.is_verified = True
+            db_admin.hashed_password = auth.get_password_hash("admin123")
+            db.commit()
+            print("⚡ Admin güncellendi (admin@scoutiq.local).")
 
         # ==========================================
         # 2. FUTBOLCU HESABI OLUŞTURMA

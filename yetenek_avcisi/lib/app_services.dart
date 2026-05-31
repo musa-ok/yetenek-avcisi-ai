@@ -4,15 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:yetenek_avcisi/core/api/api_client.dart';
+import 'package:yetenek_avcisi/core/config/api_config.dart';
+import 'package:yetenek_avcisi/core/utils/social_auth_helper.dart';
 
-/// Match your FastAPI base URL
-/// iOS Simulator: http://127.0.0.1:8000
-/// Android Emulator: http://10.0.2.2:8000
-/// Physical Device: http://<YOUR_MAC_IP>:8000 (e.g., http://1.1.13.182:8000)
-const String kApiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'https://stingray-app-g3o9y.ondigitalocean.app', // Production: DigitalOcean
-);
+export 'package:yetenek_avcisi/core/config/api_config.dart' show kApiBaseUrl;
 
 final ValueNotifier<AuthenticatedUser?> currentUserNotifier =
     ValueNotifier<AuthenticatedUser?>(null);
@@ -20,10 +16,15 @@ final ValueNotifier<String?> currentAccessTokenNotifier =
     ValueNotifier<String?>(null);
 
 class AuthSession {
-  const AuthSession({required this.user, required this.accessToken});
+  const AuthSession({
+    required this.user,
+    required this.accessToken,
+    this.refreshToken,
+  });
 
   final AuthenticatedUser user;
   final String accessToken;
+  final String? refreshToken;
 }
 
 class AuthenticatedUser {
@@ -48,6 +49,10 @@ class AuthenticatedUser {
   final String? birthDate;
   final int? age;
   final bool isVerified;
+
+  /// Ekranda gösterilecek güvenli isim (Apple ID / relay karışıklığını önler).
+  String get displayName =>
+      SocialAuthHelper.sanitizeDisplayName(fullName: fullName, email: email);
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -82,7 +87,7 @@ class AuthenticatedUser {
     final isVerified = m['is_verified'] == true || m['isVerified'] == true;
     return AuthenticatedUser(
       id: id,
-      fullName: name.isEmpty ? email.split('@').first : name,
+      fullName: SocialAuthHelper.sanitizeDisplayName(fullName: name, email: email),
       email: email,
       role: role,
       phoneNumber: phone,
@@ -95,9 +100,14 @@ class AuthenticatedUser {
 }
 
 class ScoutRating {
-  const ScoutRating({required this.scoutName, required this.score});
+  const ScoutRating({
+    required this.scoutName,
+    required this.score,
+    this.isMine = false,
+  });
   final String scoutName;
   final int score;
+  final bool isMine;
 
   factory ScoutRating.fromJson(Map<String, dynamic> m) {
     final raw = m['score'] ?? m['overall'] ?? 0;
@@ -110,6 +120,7 @@ class ScoutRating {
     return ScoutRating(
       scoutName: '${m['scout_name'] ?? m['scoutName'] ?? 'Scout'}',
       score: score,
+      isMine: m['is_mine'] == true,
     );
   }
 }
@@ -133,9 +144,26 @@ class PlayerListItem {
     this.dri,
     this.def,
     this.phy,
+    this.city,
+    this.birthDate,
+    this.clubName,
+    this.clubHistory,
+    this.preferredFoot,
+    this.heightCm,
+    this.weightKg,
+    this.rising7d = false,
+    this.ovrDelta,
+    this.userId,
+    this.slotBreakdown = const [],
+    this.analysisVersion,
+    this.aiOvr,
+    this.communityOvr,
+    this.combinedOvr,
+    this.scoutCountForRating = 0,
   });
 
   final int id;
+  final int? userId;
   final String name;
   final int age;
   final String position;
@@ -152,6 +180,65 @@ class PlayerListItem {
   final int? dri;
   final int? def;
   final int? phy;
+  final String? city;
+  final String? birthDate;
+  final String? clubName;
+  final String? clubHistory;
+  final String? preferredFoot;
+  final int? heightCm;
+  final int? weightKg;
+  final bool rising7d;
+  final int? ovrDelta;
+  final List<Map<String, dynamic>> slotBreakdown;
+  final String? analysisVersion;
+  final int? aiOvr;
+  final int? communityOvr;
+  final int? combinedOvr;
+  final int scoutCountForRating;
+
+  PlayerListItem copyWith({
+    String? name,
+    int? age,
+    String? position,
+    int? overallRating,
+    String? profileImageUrl,
+    String? city,
+    String? clubName,
+    String? clubHistory,
+    String? preferredFoot,
+    int? heightCm,
+    int? weightKg,
+  }) {
+    return PlayerListItem(
+      id: id,
+      userId: userId,
+      name: name ?? this.name,
+      age: age ?? this.age,
+      position: position ?? this.position,
+      overallRating: overallRating ?? this.overallRating,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      phoneNumber: phoneNumber,
+      aiScoutReport: aiScoutReport,
+      videoUrl: videoUrl,
+      source: source,
+      scoutRatings: scoutRatings,
+      pac: pac,
+      sho: sho,
+      pas: pas,
+      dri: dri,
+      def: def,
+      phy: phy,
+      city: city ?? this.city,
+      birthDate: birthDate,
+      clubName: clubName ?? this.clubName,
+      clubHistory: clubHistory ?? this.clubHistory,
+      preferredFoot: preferredFoot ?? this.preferredFoot,
+      heightCm: heightCm ?? this.heightCm,
+      weightKg: weightKg ?? this.weightKg,
+      rising7d: rising7d,
+      ovrDelta: ovrDelta,
+    );
+  }
 
   factory PlayerListItem.fromJson(Map<String, dynamic> m) {
     final idRaw = m['id'];
@@ -192,15 +279,32 @@ class PlayerListItem {
 
     return PlayerListItem(
       id: id,
+      userId: _readOptionalInt(m, 'user_id', 'userId'),
       name: name.isEmpty ? 'Oyuncu #$id' : name,
       age: age,
       position: position,
       overallRating: overall,
-      profileImageUrl: _readOptionalString(m, 'profile_image', 'profileImage', 'profile_photo'),
+      profileImageUrl: _readOptionalString(
+        m,
+        'profile_image_url',
+        'profileImageUrl',
+        'profile_image',
+        'profileImage',
+        'profile_photo',
+      ),
       phoneNumber: _readOptionalString(m, 'phone_number', 'phoneNumber', 'mobile'),
       aiScoutReport: _readOptionalString(m, 'ai_scout_report', 'aiScoutReport', 'scout_raporu'),
       videoUrl: _readOptionalString(m, 'video_url', 'videoUrl', 'video'),
       source: '${m['source'] ?? 'legacy'}',
+      city: _readOptionalString(m, 'city'),
+      birthDate: _readOptionalString(m, 'birth_date', 'birthDate'),
+      clubName: _readOptionalString(m, 'club_name', 'clubName'),
+      clubHistory: _readOptionalString(m, 'club_history', 'clubHistory'),
+      preferredFoot: _readOptionalString(m, 'preferred_foot', 'preferredFoot'),
+      heightCm: _readOptionalInt(m, 'height_cm', 'heightCm'),
+      weightKg: _readOptionalInt(m, 'weight_kg', 'weightKg'),
+      rising7d: m['rising_7d'] == true,
+      ovrDelta: _readOptionalInt(m, 'ovr_delta', 'ovrDelta'),
       pac: readSkill(const ['pac', 'pace']),
       sho: readSkill(const ['sho', 'shooting']),
       pas: readSkill(const ['pas', 'passing']),
@@ -213,6 +317,178 @@ class PlayerListItem {
                 .map(ScoutRating.fromJson)
                 .toList()
           : const [],
+      slotBreakdown: _parseSlotBreakdownMap(m),
+      analysisVersion: _readOptionalString(m, 'analysis_version', 'analysisVersion'),
+      aiOvr: _readCombinedInt(m, const ['ai_ovr', 'aiOvr']) ?? overall,
+      communityOvr: _readCombinedInt(m, const ['community_ovr', 'communityOvr']),
+      combinedOvr: _readCombinedInt(m, const ['combined_ovr', 'combinedOvr']),
+      scoutCountForRating: _readScoutCountForRating(m),
+    );
+  }
+
+  static int? _readCombinedInt(Map<String, dynamic> m, List<String> keys) {
+    for (final k in keys) {
+      final v = m[k];
+      if (v is int && v > 0) return v;
+      if (v is num && v > 0) return v.toInt();
+      if (v is String) {
+        final p = int.tryParse(v);
+        if (p != null && p > 0) return p;
+      }
+    }
+    final nested = m['combined_rating'] ?? m['rating_sources'];
+    if (nested is Map) {
+      final map = Map<String, dynamic>.from(nested);
+      return _readCombinedInt(map, keys);
+    }
+    return null;
+  }
+
+  static int _readScoutCountForRating(Map<String, dynamic> m) {
+    final nested = m['combined_rating'] ?? m['rating_sources'];
+    if (nested is Map) {
+      final c = nested['scout_count'];
+      if (c is int) return c;
+      if (c is num) return c.toInt();
+    }
+    final comm = m['community_rating'];
+    if (comm is Map) {
+      final c = comm['rating_count'];
+      if (c is int) return c;
+      if (c is num) return c.toInt();
+    }
+    return 0;
+  }
+
+  static List<Map<String, dynamic>> _parseSlotBreakdownMap(Map<String, dynamic> m) {
+    final raw = m['slot_breakdown'];
+    if (raw is List) {
+      return raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    final scores = m['skill_scores'];
+    if (scores is Map && scores['slot_breakdown'] is List) {
+      return (scores['slot_breakdown'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return [];
+  }
+}
+
+class ScoutNoteItem {
+  const ScoutNoteItem({
+    required this.id,
+    required this.scoutId,
+    required this.scoutName,
+    required this.body,
+    required this.visibility,
+    this.isMine = false,
+    this.createdAt,
+  });
+
+  final int id;
+  final int scoutId;
+  final String scoutName;
+  final String body;
+  final String visibility;
+  final bool isMine;
+  final String? createdAt;
+
+  factory ScoutNoteItem.fromJson(Map<String, dynamic> m) {
+    return ScoutNoteItem(
+      id: m['id'] is int ? m['id'] as int : int.parse('${m['id']}'),
+      scoutId: m['scout_id'] is int ? m['scout_id'] as int : int.parse('${m['scout_id']}'),
+      scoutName: '${m['scout_name'] ?? 'Scout'}',
+      body: '${m['body'] ?? ''}',
+      visibility: '${m['visibility'] ?? 'private'}',
+      isMine: m['is_mine'] == true,
+      createdAt: m['created_at']?.toString(),
+    );
+  }
+}
+
+class ShortlistSummary {
+  const ShortlistSummary({
+    required this.id,
+    required this.title,
+    required this.shareToken,
+    this.shareUrl,
+    this.itemCount = 0,
+    this.items = const [],
+  });
+
+  final int id;
+  final String title;
+  final String shareToken;
+  final String? shareUrl;
+  final int itemCount;
+  final List<ShortlistItemEntry> items;
+
+  factory ShortlistSummary.fromJson(Map<String, dynamic> m) {
+    final rawItems = m['items'];
+    return ShortlistSummary(
+      id: m['id'] is int ? m['id'] as int : int.parse('${m['id']}'),
+      title: '${m['title'] ?? 'Favorilerim'}',
+      shareToken: '${m['share_token'] ?? ''}',
+      shareUrl: m['share_url']?.toString(),
+      itemCount: m['item_count'] is int ? m['item_count'] as int : int.tryParse('${m['item_count']}') ?? 0,
+      items: rawItems is List
+          ? rawItems
+              .whereType<Map<String, dynamic>>()
+              .map(ShortlistItemEntry.fromJson)
+              .toList()
+          : const [],
+    );
+  }
+}
+
+class ShortlistItemEntry {
+  const ShortlistItemEntry({
+    required this.playerId,
+    required this.source,
+    this.player,
+  });
+
+  final int playerId;
+  final String source;
+  final PlayerListItem? player;
+
+  factory ShortlistItemEntry.fromJson(Map<String, dynamic> m) {
+    final playerMap = m['player'];
+    return ShortlistItemEntry(
+      playerId: m['player_id'] is int ? m['player_id'] as int : int.parse('${m['player_id']}'),
+      source: '${m['player_source'] ?? 'multivideo'}',
+      player: playerMap is Map<String, dynamic> ? PlayerListItem.fromJson(playerMap) : null,
+    );
+  }
+}
+
+class AppNotificationItem {
+  const AppNotificationItem({
+    required this.id,
+    required this.kind,
+    required this.title,
+    this.body,
+    this.read = false,
+    this.createdAt,
+  });
+
+  final int id;
+  final String kind;
+  final String title;
+  final String? body;
+  final bool read;
+  final String? createdAt;
+
+  factory AppNotificationItem.fromJson(Map<String, dynamic> m) {
+    return AppNotificationItem(
+      id: m['id'] is int ? m['id'] as int : int.parse('${m['id']}'),
+      kind: '${m['kind'] ?? ''}',
+      title: '${m['title'] ?? ''}',
+      body: m['body']?.toString(),
+      read: m['read'] == true,
+      createdAt: m['created_at']?.toString(),
     );
   }
 }
@@ -254,6 +530,8 @@ class PlayerRatingSummary {
     required this.def,
     required this.phy,
     this.profileImageUrl,
+    this.ratingCount = 0,
+    this.currentUserHasRated = false,
   });
 
   final int ovr;
@@ -264,6 +542,8 @@ class PlayerRatingSummary {
   final int def;
   final int phy;
   final String? profileImageUrl;
+  final int ratingCount;
+  final bool currentUserHasRated;
 
   // Helper getter - eğer değer 0 veya null ise overallRating kullan
   int get effectivePac => pac > 0 ? pac : ovr;
@@ -357,19 +637,36 @@ class PlayerRatingSummary {
         'profileImage',
         'profile_photo',
       ),
+      ratingCount: readInt(const ['rating_count'], 0),
+      currentUserHasRated: m['current_user_has_rated'] == true,
     );
   }
 }
 
 String? _readOptionalString(
   Map<String, dynamic> m,
-  String a,
-  String b, [
+  String a, [
+  String? b,
   String? c,
+  String? d,
+  String? e,
+  String? f,
 ]) {
-  for (final k in <String>[a, b, if (c != null && c.trim().isNotEmpty) c]) {
+  for (final k in <String?>[a, b, c, d, e, f]) {
+    if (k == null || k.trim().isEmpty) continue;
     final v = m[k];
     if (v is String && v.trim().isNotEmpty) return v.trim();
+  }
+  return null;
+}
+
+int? _readOptionalInt(Map<String, dynamic> m, String a, [String? b]) {
+  for (final k in <String?>[a, b]) {
+    if (k == null) continue;
+    final v = m[k];
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v);
   }
   return null;
 }
@@ -427,6 +724,7 @@ Future<void> openWhatsAppConversation({
 class SessionStore {
   static const String _authKey = 'auth_user_json';
   static const String _tokenKey = 'auth_access_token';
+  static const String _refreshKey = 'auth_refresh_token';
 
   static Future<void> restoreIntoNotifier() async {
     final prefs = await SharedPreferences.getInstance();
@@ -444,6 +742,7 @@ class SessionStore {
     } catch (_) {
       await prefs.remove(_authKey);
       await prefs.remove(_tokenKey);
+      await prefs.remove(_refreshKey);
     }
   }
 
@@ -451,17 +750,39 @@ class SessionStore {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_authKey, json.encode(session.user.toJson()));
     await prefs.setString(_tokenKey, session.accessToken);
+    if (session.refreshToken != null && session.refreshToken!.isNotEmpty) {
+      await prefs.setString(_refreshKey, session.refreshToken!);
+    }
     currentUserNotifier.value = session.user;
     currentAccessTokenNotifier.value = session.accessToken;
+  }
+
+  static Future<String?> readRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_refreshKey)?.trim();
   }
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_authKey);
     await prefs.remove(_tokenKey);
+    await prefs.remove(_refreshKey);
     currentUserNotifier.value = null;
     currentAccessTokenNotifier.value = null;
   }
+}
+
+AuthSession _authSessionFromJson(Map<String, dynamic> decoded) {
+  final token = '${decoded['access_token'] ?? ''}'.trim();
+  if (token.isEmpty) throw ApiException('Token alınamadı', 500);
+  final userMap = decoded['user'] as Map<String, dynamic>?;
+  if (userMap == null) throw ApiException('Kullanıcı bilgisi alınamadı', 500);
+  final refresh = '${decoded['refresh_token'] ?? ''}'.trim();
+  return AuthSession(
+    user: AuthenticatedUser.fromJson(userMap),
+    accessToken: token,
+    refreshToken: refresh.isEmpty ? null : refresh,
+  );
 }
 
 class BackendApi {
@@ -470,22 +791,8 @@ class BackendApi {
   static Uri _uri(String path) =>
       Uri.parse(kApiBaseUrl).resolve(path.startsWith('/') ? path : '/$path');
 
-  static Map<String, String> _jsonHeaders({bool authRequired = false}) {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-    final token = currentAccessTokenNotifier.value?.trim();
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    } else if (authRequired) {
-      throw ApiException(
-        'Oturum suresi dolmus. Lutfen yeniden giris yapin.',
-        401,
-      );
-    }
-    return headers;
-  }
+  static Map<String, String> _jsonHeaders({bool authRequired = false}) =>
+      ApiClient.headers(json: true, authRequired: authRequired);
 
   /// YENİ KAYIT SİSTEMİ - /auth/register
   /// Token DÖNMEZ! Sadece başarı mesajı döner.
@@ -497,6 +804,7 @@ class BackendApi {
     required String phoneNumber,
     String? birthDate,
     int? age,
+    String? referralCode,
   }) async {
     final body = json.encode({
       'full_name': fullName.trim(),
@@ -506,6 +814,8 @@ class BackendApi {
       'phone_number': phoneNumber.trim(),
       if (birthDate != null) 'birth_date': birthDate,
       if (age != null) 'age': age,
+      if (referralCode != null && referralCode.trim().isNotEmpty)
+        'referral_code': referralCode.trim().toUpperCase(),
     });
 
     // YENİ ENDPOINT: /auth/register
@@ -540,15 +850,8 @@ class BackendApi {
     }
 
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      final decoded = json.decode(res.body);
-      final token = '${decoded['access_token'] ?? ''}'.trim();
-      if (token.isEmpty) throw ApiException('Token alınamadı', 500);
-      
-      final userMap = decoded['user'] as Map<String, dynamic>?;
-      if (userMap == null) throw ApiException('Kullanıcı bilgisi alınamadı', 500);
-      
-      final user = AuthenticatedUser.fromJson(userMap);
-      return AuthSession(user: user, accessToken: token);
+      final decoded = json.decode(res.body) as Map<String, dynamic>;
+      return _authSessionFromJson(decoded);
     }
 
     throw ApiException(
@@ -618,10 +921,91 @@ class BackendApi {
   }
 
   /// GET /players — returns `[{ ... }]`.
-  static Future<List<PlayerListItem>> fetchPlayers() async {
+  static Future<AuthSession> refreshAccessToken() async {
+    final refresh = await SessionStore.readRefreshToken();
+    if (refresh == null || refresh.isEmpty) {
+      throw ApiException('Oturum yenilenemedi. Lütfen tekrar giriş yapın.', 401);
+    }
     final res = await http
-        .get(_uri('/players'), headers: {'Accept': 'application/json'})
+        .post(
+          _uri('/auth/refresh'),
+          headers: _jsonHeaders(),
+          body: json.encode({'refresh_token': refresh}),
+        )
         .timeout(const Duration(seconds: 30));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final decoded = json.decode(res.body) as Map<String, dynamic>;
+      final user = currentUserNotifier.value;
+      if (user == null) throw ApiException('Kullanıcı oturumu yok', 401);
+      final session = AuthSession(
+        user: user,
+        accessToken: '${decoded['access_token']}',
+        refreshToken: '${decoded['refresh_token'] ?? refresh}',
+      );
+      await SessionStore.save(session);
+      return session;
+    }
+    throw _friendlyError(res);
+  }
+
+  static Future<void> logout() async {
+    final refresh = await SessionStore.readRefreshToken();
+    try {
+      if (refresh != null && refresh.isNotEmpty) {
+        await ApiClient.post(
+          '/auth/logout',
+          body: {'refresh_token': refresh},
+          authRequired: true,
+        );
+      }
+    } catch (_) {}
+    await SessionStore.clear();
+  }
+
+  static Future<void> deleteMyAccount() async {
+    final res = await ApiClient.delete('/users/me', authRequired: true);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException(_friendlyErrorMsg(res.body, res.statusCode), res.statusCode);
+    }
+    await SessionStore.clear();
+  }
+
+  static Future<Map<String, dynamic>> exportMyData() async {
+    const paths = ['/users/me/export', '/api/v1/users/me/export'];
+    http.Response? last;
+    for (final path in paths) {
+      final res = await ApiClient.get(path, authRequired: true);
+      last = res;
+      if (res.statusCode == 404) continue;
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return json.decode(res.body) as Map<String, dynamic>;
+      }
+      throw ApiException(_friendlyExportError(res.body, res.statusCode), res.statusCode);
+    }
+    throw ApiException(
+      _friendlyExportError(last?.body ?? '', last?.statusCode ?? 404),
+      last?.statusCode ?? 404,
+    );
+  }
+
+  static String _friendlyExportError(String body, int status) {
+    if (status == 404) {
+      return 'Veri export bu sunucuda henüz yok. Debug modda yerel backend çalıştırın '
+          '(http://127.0.0.1:8000) veya production\'ı güncel kodla deploy edin.';
+    }
+    return _friendlyErrorMsg(body, status);
+  }
+
+  static Future<Map<String, dynamic>> fetchReferralLink() async {
+    final res = await ApiClient.get('/auth/me/referral', authRequired: true);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return json.decode(res.body) as Map<String, dynamic>;
+    }
+    throw ApiException(_friendlyErrorMsg(res.body, res.statusCode), res.statusCode);
+  }
+
+  static Future<List<PlayerListItem>> fetchPlayers() async {
+    final res = await ApiClient.get('/players');
 
     if (res.statusCode != 200) {
       throw _friendlyError(res);
@@ -639,19 +1023,26 @@ class BackendApi {
   static Future<PlayerRatingSummary> fetchPlayerRatingSummary(
     int playerId,
   ) async {
-    final res = await http
-        .get(_uri('/players/$playerId'), headers: _jsonHeaders())
-        .timeout(const Duration(seconds: 30));
+    final detail = await fetchPlayerDetail(playerId);
+    return detail.rating;
+  }
+
+  /// GET /players/{id} — oyuncu + community_rating.
+  static Future<({PlayerListItem player, PlayerRatingSummary rating})>
+      fetchPlayerDetail(int playerId) async {
+    final res = await ApiClient.get('/players/$playerId');
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw _friendlyError(res);
     }
     final decoded = json.decode(res.body);
-    if (decoded is Map<String, dynamic>) {
-      final ratingMap = _extractRatingMap(decoded);
-      return PlayerRatingSummary.fromJson(ratingMap);
+    if (decoded is! Map<String, dynamic>) {
+      throw ApiException('Oyuncu detayi formati beklenmiyordu.', res.statusCode);
     }
-    throw ApiException('Oyuncu puani formati beklenmiyordu.', res.statusCode);
+    final ratingMap = _extractRatingMap(decoded);
+    final rating = PlayerRatingSummary.fromJson(ratingMap);
+    final player = PlayerListItem.fromJson(decoded);
+    return (player: player, rating: rating);
   }
 
   static Future<PlayerRatingSummary> ratePlayer({
@@ -662,13 +1053,11 @@ class BackendApi {
     final path = source == 'multivideo'
         ? '/players/multivideo/$playerId/rate'
         : '/players/$playerId/rate';
-    final res = await http
-        .post(
-          _uri(path),
-          headers: _jsonHeaders(authRequired: true),
-          body: json.encode(payload.toJson()),
-        )
-        .timeout(const Duration(seconds: 30));
+    final res = await ApiClient.post(
+      path,
+      body: payload.toJson(),
+      authRequired: true,
+    );
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw _friendlyError(res);
@@ -747,10 +1136,10 @@ class BackendApi {
     if (profileImageUrl != null) body['profile_image_url'] = profileImageUrl;
     if (birthDate != null) body['birth_date'] = birthDate;
 
-    final res = await http.put(
-      _uri('/me'),
-      headers: _jsonHeaders(authRequired: true),
-      body: json.encode(body),
+    final res = await ApiClient.put(
+      '/me',
+      body: body,
+      authRequired: true,
     ).timeout(const Duration(seconds: 15));
 
     if (res.statusCode == 200) {
@@ -824,13 +1213,12 @@ class BackendApi {
       final decoded = json.decode(res.body) as Map<String, dynamic>;
       
       if (decoded['status'] == 'incomplete') {
-        // Kullanıcı yok, profil tamamlama gerekli
         return SocialLoginResult(
           status: 'incomplete',
-          email: email,
-          fullName: fullName,
-          provider: provider,
-          providerId: providerId,
+          email: '${decoded['email'] ?? email}'.trim(),
+          fullName: '${decoded['full_name'] ?? fullName}'.trim(),
+          provider: '${decoded['provider'] ?? provider}'.trim(),
+          providerId: '${decoded['provider_id'] ?? providerId ?? ''}'.trim(),
         );
       }
       
@@ -934,20 +1322,191 @@ class BackendApi {
       throw _friendlyError(res);
     }
 
-    // Parse response and create session
-    final data = json.decode(res.body);
-    final token = data['access_token'] as String?;
-    final userMap = data['user'];
-    
-    if (token == null || token.isEmpty) {
-      throw ApiException('Token alınamadı', 500);
+    final data = json.decode(res.body) as Map<String, dynamic>;
+    return _authSessionFromJson(data);
+  }
+
+  static Future<List<PlayerListItem>> fetchPlayersWithFilters({
+    String? position,
+    int? minAge,
+    int? maxAge,
+    int? minOvr,
+    int? maxOvr,
+    String? city,
+    bool rising7d = false,
+  }) async {
+    final params = <String, String>{};
+    if (position != null && position.isNotEmpty && position != 'Tum') {
+      params['position'] = position;
     }
-    if (userMap == null || userMap is! Map<String, dynamic>) {
-      throw ApiException('Kullanıcı bilgisi alınamadı', 500);
+    if (minAge != null) params['min_age'] = '$minAge';
+    if (maxAge != null) params['max_age'] = '$maxAge';
+    if (minOvr != null) params['min_ovr'] = '$minOvr';
+    if (maxOvr != null) params['max_ovr'] = '$maxOvr';
+    if (city != null && city.trim().isNotEmpty) params['city'] = city.trim();
+    if (rising7d) params['rising_7d'] = 'true';
+
+    final res = await ApiClient.get('/players', query: params);
+    if (res.statusCode != 200) throw _friendlyError(res);
+    final decoded = json.decode(res.body);
+    if (decoded is! List) {
+      throw ApiException('Oyuncu listesi formati beklenmiyordu.', res.statusCode);
     }
-    
-    final user = AuthenticatedUser.fromJson(userMap);
-    return AuthSession(user: user, accessToken: token);
+    return decoded
+        .whereType<Map<String, dynamic>>()
+        .map(PlayerListItem.fromJson)
+        .toList();
+  }
+
+  static Future<Map<String, dynamic>> comparePlayers(int a, int b) async {
+    final res = await ApiClient.get('/players/compare', query: {'a': '$a', 'b': '$b'});
+    if (res.statusCode != 200) throw _friendlyError(res);
+    final decoded = json.decode(res.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw ApiException('Karsilastirma cevabi gecersiz.', res.statusCode);
+    }
+    return decoded;
+  }
+
+  static Future<List<ScoutNoteItem>> fetchPlayerNotes(int playerId, {String source = 'multivideo'}) async {
+    final res = await ApiClient.get(
+      '/players/$playerId/notes',
+      query: {'player_source': source},
+      authRequired: false,
+    );
+    if (res.statusCode != 200) throw _friendlyError(res);
+    final decoded = json.decode(res.body);
+    if (decoded is! List) return [];
+    return decoded.whereType<Map<String, dynamic>>().map(ScoutNoteItem.fromJson).toList();
+  }
+
+  static Future<ScoutNoteItem> createPlayerNote({
+    required int playerId,
+    required String body,
+    String visibility = 'private',
+    String source = 'multivideo',
+  }) async {
+    final res = await ApiClient.post(
+      '/players/$playerId/notes',
+      body: {'body': body, 'visibility': visibility, 'player_source': source},
+      authRequired: true,
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _friendlyError(res);
+    return ScoutNoteItem.fromJson(json.decode(res.body) as Map<String, dynamic>);
+  }
+
+  static Future<void> deletePlayerNote(int noteId) async {
+    final res = await ApiClient.delete('/notes/$noteId', authRequired: true);
+    if (res.statusCode != 204 && (res.statusCode < 200 || res.statusCode >= 300)) {
+      throw _friendlyError(res);
+    }
+  }
+
+  static Future<List<ShortlistSummary>> fetchMyShortlists() async {
+    final res = await ApiClient.get('/shortlists/mine', authRequired: true);
+    if (res.statusCode != 200) throw _friendlyError(res);
+    final decoded = json.decode(res.body);
+    if (decoded is! List) return [];
+    return decoded.whereType<Map<String, dynamic>>().map(ShortlistSummary.fromJson).toList();
+  }
+
+  static Future<void> addToShortlist({
+    required int shortlistId,
+    required int playerId,
+    String source = 'multivideo',
+  }) async {
+    final res = await ApiClient.post(
+      '/shortlists/$shortlistId/items',
+      body: {'player_id': playerId, 'player_source': source},
+      authRequired: true,
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _friendlyError(res);
+  }
+
+  static Future<void> removeFromShortlist({
+    required int shortlistId,
+    required int playerId,
+    String source = 'multivideo',
+  }) async {
+    final res = await ApiClient.delete(
+      '/shortlists/$shortlistId/items/$playerId?player_source=$source',
+      authRequired: true,
+    );
+    if (res.statusCode != 204 && (res.statusCode < 200 || res.statusCode >= 300)) {
+      throw _friendlyError(res);
+    }
+  }
+
+  static Future<List<AppNotificationItem>> fetchNotifications({bool unreadOnly = false}) async {
+    final res = await ApiClient.get(
+      '/notifications',
+      query: unreadOnly ? {'unread_only': 'true'} : null,
+      authRequired: true,
+    );
+    if (res.statusCode != 200) throw _friendlyError(res);
+    final decoded = json.decode(res.body);
+    if (decoded is! List) return [];
+    return decoded.whereType<Map<String, dynamic>>().map(AppNotificationItem.fromJson).toList();
+  }
+
+  static Future<void> markNotificationRead(int id) async {
+    final res = await ApiClient.patch('/notifications/$id/read', authRequired: true);
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _friendlyError(res);
+  }
+
+  static Future<void> registerFcmToken(String deviceToken) async {
+    final res = await ApiClient.post(
+      '/notifications/register-device',
+      body: {'device_token': deviceToken},
+      authRequired: true,
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw _friendlyError(res);
+    }
+  }
+
+  static Future<void> clearFcmToken() async {
+    final res = await ApiClient.post(
+      '/notifications/register-device',
+      body: {'device_token': ''},
+      authRequired: true,
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw _friendlyError(res);
+    }
+  }
+
+  static Future<Map<String, dynamic>?> fetchMyMultivideoProfile() async {
+    final res = await ApiClient.get('/me/multivideo-profile', authRequired: true);
+    if (res.statusCode != 200) throw _friendlyError(res);
+    final decoded = json.decode(res.body) as Map<String, dynamic>;
+    if (decoded['player_id'] == null) return null;
+    return decoded;
+  }
+
+  static Future<Map<String, dynamic>> updateMyMultivideoProfile(
+    Map<String, dynamic> fields,
+  ) async {
+    final res = await ApiClient.patch(
+      '/me/multivideo-profile',
+      body: fields,
+      authRequired: true,
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _friendlyError(res);
+    return json.decode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> updateMultivideoProfile(
+    int playerId,
+    Map<String, dynamic> fields,
+  ) async {
+    final res = await ApiClient.patch(
+      '/players/multivideo/$playerId/profile',
+      body: fields,
+      authRequired: true,
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) throw _friendlyError(res);
+    return json.decode(res.body) as Map<String, dynamic>;
   }
 
 }

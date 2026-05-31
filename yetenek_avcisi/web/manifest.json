@@ -1,6 +1,6 @@
 {
-    "name": "yetenek_avcisi",
-    "short_name": "yetenek_avcisi",
+    "name": "Scoutiq",
+    "short_name": "Scoutiq",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

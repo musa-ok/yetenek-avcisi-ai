@@ -317,6 +317,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     final phone = scout['phone_number'] as String? ?? 'Telefon yok';
     final documentUrl = scout['scout_document_url'] as String?;
     final createdAt = scout['created_at'] as String?;
+    final referrerName = scout['referrer_name'] as String?;
+    final referrerEmail = scout['referrer_email'] as String?;
+    final inviteLabel = (referrerName != null && referrerName.trim().isNotEmpty)
+        ? referrerName.trim()
+        : (referrerEmail != null && referrerEmail.trim().isNotEmpty)
+            ? referrerEmail.trim()
+            : null;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -416,6 +423,35 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             const SizedBox(height: 12),
             const Divider(color: Colors.white24, height: 1),
             const SizedBox(height: 12),
+
+            Row(
+              children: [
+                Icon(
+                  Icons.person_add_alt_1_outlined,
+                  size: 14,
+                  color: inviteLabel != null
+                      ? const Color(0xFF00E676)
+                      : Colors.white.withOpacity(0.4),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    inviteLabel != null
+                        ? 'Davet: $inviteLabel'
+                        : 'Davet: Doğrudan kayıt',
+                    style: TextStyle(
+                      color: inviteLabel != null
+                          ? const Color(0xFF00E676)
+                          : Colors.white.withOpacity(0.45),
+                      fontSize: 13,
+                      fontWeight:
+                          inviteLabel != null ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
 
             // Document Info
             if (createdAt != null)

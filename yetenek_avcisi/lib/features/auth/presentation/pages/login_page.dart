@@ -97,7 +97,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 8),
                       
                       Text(
-                        'Yetenek Avcısı\'na giriş yap',
+                        '${AppConstants.appName}\'na giriş yap',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                         ),

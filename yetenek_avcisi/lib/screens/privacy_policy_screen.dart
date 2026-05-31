@@ -106,7 +106,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             _buildSection(
               icon: Icons.verified_user_outlined,
               title: '7. KVKK ve Yasal Uyum',
-              content: 'Tüm veri işleme faaliyetlerimiz 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) ve ilgili mevzuata uygun olarak yürütülmektedir. Haklarınız için bize ulaşabilirsiniz.',
+              content: 'Tüm veri işleme faaliyetlerimiz 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) ve ilgili mevzuata uygun olarak yürütülmektedir. Profil ayarlarından hesabınızı silebilir veya "Verilerimi İndir" ile JSON export alabilirsiniz (API: GET /users/me/export).',
             ),
             
             const SizedBox(height: 32),

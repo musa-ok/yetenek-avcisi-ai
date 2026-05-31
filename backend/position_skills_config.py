@@ -339,15 +339,95 @@ POSITION_SKILLS_CONFIG = {
     }
 }
 
+KOSU_FLAT_LABEL = "20 Metre Düz Koşu"
+KOSU_UPHILL_LABEL = "10 Metre Yokuş Yukarı Koşu"
+
 # Pozisyon listesi (dropdown için)
 POSITIONS = list(POSITION_SKILLS_CONFIG.keys())
 
-def get_skills_for_position(position: str):
-    """Mevki için 3 yetenek videosu bilgisini döndürür"""
+
+def _raw_skills_for_position(position: str) -> list[dict]:
     config = POSITION_SKILLS_CONFIG.get(position)
-    if config:
-        return config["skills"]
-    return []
+    if not config:
+        return []
+    return list(config["skills"])
+
+
+def _skill_is_speed_or_kosu(skill: dict) -> bool:
+    name = (skill.get("name") or "").lower()
+    desc = (skill.get("description") or "").lower()
+    return (
+        name == "hız"
+        or "koşu" in name
+        or "koşu" in desc
+        or "sprint" in desc
+        or "kaçma" in desc
+    )
+
+
+def skill_requires_dual_kosu_upload(skill: dict) -> bool:
+    """Sadece Hız/koşu slotları → 20m düz + 10m yokuş (2 video). Dripling tek video."""
+    return _skill_is_speed_or_kosu(skill)
+
+
+def get_kosu_slot_numbers(position: str) -> list[int]:
+    return [
+        int(s["slot"])
+        for s in get_skills_for_position(position)
+        if s.get("is_kosu_slot")
+    ]
+
+
+def get_kosu_slot_number(position: str) -> int | None:
+    """Geriye dönük: ilk Hız slotu."""
+    nums = get_kosu_slot_numbers(position)
+    return nums[0] if nums else None
+
+
+def position_has_kosu_slot(position: str) -> bool:
+    return len(get_kosu_slot_numbers(position)) > 0
+
+
+def get_required_upload_count(position: str) -> int:
+    total = 0
+    for s in get_skills_for_position(position):
+        total += 2 if s.get("is_kosu_slot") else 1
+    return total or 3
+
+
+def get_required_video_count(position: str) -> int:
+    """Geriye dönük uyumluluk — upload sayısı."""
+    return get_required_upload_count(position)
+
+
+def get_skills_for_position(position: str):
+    """Orijinal 3 yetenek; yalnızca Hız slotlarında is_kosu_slot=True."""
+    out = []
+    for s in _raw_skills_for_position(position):
+        skill = dict(s)
+        skill["is_kosu_slot"] = skill_requires_dual_kosu_upload(s)
+        out.append(skill)
+    return out
+
+
+def is_kosu_slot_for(position: str, slot: int) -> bool:
+    for s in _raw_skills_for_position(position):
+        if int(s["slot"]) == slot:
+            return skill_requires_dual_kosu_upload(s)
+    return False
+
+
+def non_kosu_slots_ordered(position: str) -> list[int]:
+    return [s["slot"] for s in get_skills_for_position(position) if not s.get("is_kosu_slot")]
+
+
+def video_column_index_for_slot(position: str, slot: int) -> int | None:
+    if is_kosu_slot_for(position, slot):
+        return None
+    try:
+        return non_kosu_slots_ordered(position).index(slot) + 1
+    except ValueError:
+        return None
 
 def get_attributes_for_position(position: str):
     """Mevki için analiz edilecek özellikleri döndürür"""

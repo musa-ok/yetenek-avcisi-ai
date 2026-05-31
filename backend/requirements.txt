@@ -44,5 +44,12 @@ numpy==2.0.2
 # Environment
 python-dotenv==1.2.1
 
+# Observability (optional — SENTRY_DSN)
+sentry-sdk[fastapi]==2.22.0
+
+# Push notifications (optional — set FCM_ENABLED=true)
+firebase-admin==6.9.0
+
 # Image Processing
 pillow==11.3.0
+opencv-python-headless==4.10.0.84

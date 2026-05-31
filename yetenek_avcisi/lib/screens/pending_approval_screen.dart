@@ -151,7 +151,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
               // Açıklama
               Text(
-                'Hesabınızın aktif olması için lütfen Scout olduğunuzu kanıtlayan belgenizi yükleyin.',
+                'Kayıt ve e-posta doğrulamanız tamamlandı. Scout hesabınızın tam olarak açılması için yönetici onayı gerekiyor; lütfen Scout olduğunuzu kanıtlayan belgenizi yükleyin.',
                 style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.55),
                 textAlign: TextAlign.center,
               ),

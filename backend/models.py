@@ -43,6 +43,10 @@ class User(Base):
     # 🚨 YENİ EKLENEN KOTA KOLONLARI 🚨
     daily_analyses_count = Column(Integer, default=0)
     last_analysis_date = Column(DateTime(timezone=True), nullable=True)
+    fcm_device_token = Column(String, nullable=True)
+    city = Column(String, nullable=True)
+    referral_code = Column(String(16), unique=True, nullable=True, index=True)
+    referred_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     player_profile = relationship("Player", back_populates="owner", uselist=False)
     ratings_given = relationship("Rating", back_populates="reviewer")
@@ -178,3 +182,27 @@ class MultiVideoRating(Base):
 
     reviewer = relationship("User")
     player = relationship("PlayerMultiVideo", backref="community_ratings_mv")
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    jti = Column(String(36), unique=True, nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class RevokedToken(Base):
+    """İptal edilmiş access token jti listesi."""
+
+    __tablename__ = "revoked_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String(36), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    token_type = Column(String(16), default="access")
+    revoked_at = Column(DateTime(timezone=True), server_default=func.now())

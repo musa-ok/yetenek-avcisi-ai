@@ -82,7 +82,7 @@ class DashboardTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Yetenek Avcısı'),
+        title: Text(AppConstants.appName),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
