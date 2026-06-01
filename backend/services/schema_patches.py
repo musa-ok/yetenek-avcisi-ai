@@ -37,8 +37,58 @@ _MULTIVIDEO_COLUMNS = {
 }
 
 
+def ensure_discover_visible_column() -> None:
+    """Canlı DB'de alembic atlanmışsa Keşfet sorgularının 500 vermesini önler."""
+    insp = inspect(engine)
+    if "players_multivideo" not in insp.get_table_names():
+        return
+    existing = {c["name"] for c in insp.get_columns("players_multivideo")}
+    if "discover_visible" in existing:
+        return
+
+    dialect = engine.dialect.name
+    with engine.begin() as conn:
+        if dialect == "postgresql":
+            conn.execute(
+                text(
+                    "ALTER TABLE players_multivideo "
+                    "ADD COLUMN IF NOT EXISTS discover_visible BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_players_multivideo_discover_visible "
+                    "ON players_multivideo (discover_visible)"
+                )
+            )
+        elif dialect == "sqlite":
+            conn.execute(
+                text(
+                    "ALTER TABLE players_multivideo "
+                    "ADD COLUMN discover_visible BOOLEAN NOT NULL DEFAULT 0"
+                )
+            )
+        else:
+            conn.execute(
+                text(
+                    "ALTER TABLE players_multivideo "
+                    "ADD COLUMN discover_visible BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+
+    from database import SessionLocal
+    from services.discover_visibility import backfill_all_discover_visibility
+
+    db = SessionLocal()
+    try:
+        backfill_all_discover_visibility(db)
+    finally:
+        db.close()
+
+
 def ensure_schema_patches() -> None:
     ensure_users_columns()
+    ensure_discover_visible_column()
     ensure_players_multivideo_columns()
 
 

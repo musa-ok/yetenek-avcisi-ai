@@ -17,7 +17,7 @@ import models
 import models_multivideo
 import models_product
 from database import engine
-from services.schema_patches import ensure_schema_patches
+from services.schema_patches import ensure_discover_visible_column, ensure_schema_patches
 from routers.api_routes import router as api_router
 from routers.auth import router as auth_v2_router
 from routers.product_features import router as product_router
@@ -34,6 +34,12 @@ if SENTRY_DSN:
 
 
 def create_app() -> FastAPI:
+    # Son deploy'da yeni kolonlar (Keşfet) — AUTO_CREATE_TABLES kapalı olsa da uygula.
+    try:
+        ensure_discover_visible_column()
+    except Exception as exc:
+        print(f"[schema] discover_visible patch atlandi: {exc}")
+
     if AUTO_CREATE_TABLES:
         models.Base.metadata.create_all(bind=engine)
         models_multivideo.Base.metadata.create_all(bind=engine)
