@@ -1,29 +1,29 @@
 import '../../services/multi_upload_service.dart';
 
-/// FIFA kartı / istatistik ekranı için 6 ana metrik.
+/// FIFA kartı / istatistik ekranı için 6 ana metrik (ölçülmeyen = null).
 class FifaSixStats {
   const FifaSixStats({
-    required this.pace,
-    required this.finishing,
-    required this.passing,
-    required this.dribbling,
-    required this.defending,
-    required this.strength,
+    this.pace,
+    this.finishing,
+    this.passing,
+    this.dribbling,
+    this.defending,
+    this.strength,
   });
 
-  final int pace;
-  final int finishing;
-  final int passing;
-  final int dribbling;
-  final int defending;
-  final int strength;
+  final int? pace;
+  final int? finishing;
+  final int? passing;
+  final int? dribbling;
+  final int? defending;
+  final int? strength;
 
-  int get sho => finishing;
-  int get pas => passing;
-  int get dri => dribbling;
-  int get def => defending;
-  int get phy => strength;
-  int get pac => pace;
+  int? get sho => finishing;
+  int? get pas => passing;
+  int? get dri => dribbling;
+  int? get def => defending;
+  int? get phy => strength;
+  int? get pac => pace;
 }
 
 int? _readInt(dynamic v) {
@@ -37,7 +37,12 @@ int? _readInt(dynamic v) {
   return null;
 }
 
-/// Ölçülen slotlar + skill_scores; eksikler mevcutların ortalaması veya OVR.
+int? _clampStat(int? v) {
+  if (v == null || v <= 0) return null;
+  return v.clamp(1, 99);
+}
+
+/// Yalnızca ölçülen slotlar + skill_scores; eksikler doldurulmaz.
 FifaSixStats resolveFifaSixStats({
   required int overallRating,
   int? pace,
@@ -51,17 +56,21 @@ FifaSixStats resolveFifaSixStats({
   List<Map<String, dynamic>>? slotBreakdown,
 }) {
   final ss = skillScores ?? {};
-  var pac = pace ?? _readInt(ss['pace']);
-  var sho = finishing ?? _readInt(ss['finishing']);
-  var pas = passing ?? _readInt(ss['passing']);
-  var dri = dribbling ?? _readInt(ss['dribbling']);
-  var def = defending ?? _readInt(ss['defending']);
-  var phy = strength ??
-      physicalAttributes ??
-      _readInt(ss['strength']) ??
-      _readInt(ss['physical_attributes']);
-
   final breakdown = slotBreakdown ?? _breakdownFrom(ss);
+  final hasBreakdown = breakdown.isNotEmpty;
+
+  // Önce doğrudan alanlar (API); breakdown varsa yalnızca slotlardan türet
+  var pac = hasBreakdown ? null : (pace ?? _readInt(ss['pace']));
+  var sho = hasBreakdown ? null : (finishing ?? _readInt(ss['finishing']));
+  var pas = hasBreakdown ? null : (passing ?? _readInt(ss['passing']));
+  var dri = hasBreakdown ? null : (dribbling ?? _readInt(ss['dribbling']));
+  var def = hasBreakdown ? null : (defending ?? _readInt(ss['defending']));
+  var phy = hasBreakdown
+      ? null
+      : (strength ??
+          physicalAttributes ??
+          _readInt(ss['strength']) ??
+          _readInt(ss['physical_attributes']));
   final buckets = <String, List<int>>{
     'pace': [],
     'finishing': [],
@@ -93,20 +102,25 @@ FifaSixStats resolveFifaSixStats({
   def ??= avg(buckets['defending']!);
   phy ??= avg(buckets['strength']!) ?? avg(physicalExtra);
 
-  final known = [pac, sho, pas, dri, def, phy].whereType<int>().toList();
-  final fill = known.isEmpty
-      ? overallRating.clamp(1, 99)
-      : (known.reduce((a, b) => a + b) / known.length).round().clamp(1, 99);
-
-  int norm(int? v) => (v != null && v > 0) ? v.clamp(1, 99) : fill;
+  if (!hasBreakdown) {
+    pac ??= pace ?? _readInt(ss['pace']);
+    sho ??= finishing ?? _readInt(ss['finishing']);
+    pas ??= passing ?? _readInt(ss['passing']);
+    dri ??= dribbling ?? _readInt(ss['dribbling']);
+    def ??= defending ?? _readInt(ss['defending']);
+    phy ??= strength ??
+        physicalAttributes ??
+        _readInt(ss['strength']) ??
+        _readInt(ss['physical_attributes']);
+  }
 
   return FifaSixStats(
-    pace: norm(pac),
-    finishing: norm(sho),
-    passing: norm(pas),
-    dribbling: norm(dri),
-    defending: norm(def),
-    strength: norm(phy),
+    pace: _clampStat(pac),
+    finishing: _clampStat(sho),
+    passing: _clampStat(pas),
+    dribbling: _clampStat(dri),
+    defending: _clampStat(def),
+    strength: _clampStat(phy),
   );
 }
 

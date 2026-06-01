@@ -196,8 +196,8 @@ def ensure_fifa_six_in_skill_scores(
     skill_scores: dict[str, Any], ovr: int
 ) -> dict[str, Any]:
     """
-    Kart / istatistik için 6 ana metrik — ölçülmeyen slotlar için
-    mevcut skorların ortalamasıyla doldurulur (Forvet vb. yalnızca şut+dripling).
+    Kart / istatistik için 6 ana metrik — yalnızca slot_breakdown veya
+    mevcut skill_scores'tan gelen değerler korunur; ölçülmeyenler boş kalır.
     """
     ss = dict(skill_scores or {})
     breakdown = ss.get("slot_breakdown") or []
@@ -217,22 +217,21 @@ def ensure_fifa_six_in_skill_scores(
         elif attr == "physical_attributes":
             extra_physical.append(s)
 
+    measured: set[str] = set()
     for attr, scores in by_attr.items():
-        if scores and ss.get(attr) is None:
+        if scores:
             ss[attr] = round(sum(scores) / len(scores))
+            measured.add(attr)
 
-    if ss.get("strength") is None and extra_physical:
+    if extra_physical:
         ss["strength"] = round(sum(extra_physical) / len(extra_physical))
+        measured.add("strength")
 
-    known = [ss.get(k) for k in _FIFA_ATTRS if ss.get(k) is not None]
-    fill = (
-        max(1, min(99, round(sum(known) / len(known))))
-        if known
-        else max(1, min(99, int(ovr or 50)))
-    )
+    # Eski kayıtlardaki ortalama-doldurma (89,89,…) değerlerini kaldır
     for k in _FIFA_ATTRS:
-        if ss.get(k) is None:
-            ss[k] = fill
+        if k not in measured:
+            ss.pop(k, None)
+
     return ss
 
 

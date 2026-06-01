@@ -49,25 +49,27 @@ def _profile_block(p: models_multivideo.PlayerMultiVideo, owner: Optional[models
     }
 
 
-def _skills_block(p: models_multivideo.PlayerMultiVideo) -> dict[str, int]:
-    """Karsilastirma grafigi: AI / video analiz FIFA alti (topluluk degil)."""
+def _skills_block(p: models_multivideo.PlayerMultiVideo) -> dict[str, Optional[int]]:
+    """Karsilastirma: yalnizca olculen FIFA alti (bos = null)."""
     ovr = p.overall_rating or 50
     skills = ensure_fifa_six_in_skill_scores(p.skill_scores or {}, ovr)
 
-    def _int(key: str, fallback: int) -> int:
-        v = skills.get(key, fallback)
+    def _measured(key: str) -> Optional[int]:
+        v = skills.get(key)
+        if v is None:
+            return None
         try:
-            return int(v)
+            return max(1, min(100, int(v)))
         except (TypeError, ValueError):
-            return fallback
+            return None
 
     return {
-        "pac": _int("pace", ovr),
-        "sho": _int("finishing", ovr),
-        "pas": _int("passing", ovr),
-        "dri": _int("dribbling", ovr),
-        "def": _int("defending", ovr),
-        "phy": _int("strength", ovr),
+        "pac": _measured("pace"),
+        "sho": _measured("finishing"),
+        "pas": _measured("passing"),
+        "dri": _measured("dribbling"),
+        "def": _measured("defending"),
+        "phy": _measured("strength"),
     }
 
 

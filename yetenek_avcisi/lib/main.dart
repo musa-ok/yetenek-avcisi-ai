@@ -2217,7 +2217,7 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
   }
 
   // Kullanıcının en son çoklu-video analizini çek ve global notifier'a yaz.
-  // Böylece 'Benim İstatistiklerim' kartları "—" yerine gerçek skorları gösterir.
+  // Ölçülen slot skorları; ölçülmeyen FIFA altı "—" kalır.
   Future<void> _loadLatestAnalysis() async {
     try {
       final all = await MultiUploadService.listPlayers();
@@ -5133,8 +5133,8 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
       itemBuilder: (context, i) {
         final m = metrics[i];
         final int? val = hasAnalysis ? m['value'] as int? : null;
-        final bool hasVal = val != null;
-        final Color c = hasVal ? _getScoreColor(val) : Colors.grey.shade700;
+        final bool hasVal = val != null && val > 0;
+        final Color c = hasVal ? _getScoreColor(val!) : Colors.grey.shade700;
 
         return Container(
           decoration: BoxDecoration(

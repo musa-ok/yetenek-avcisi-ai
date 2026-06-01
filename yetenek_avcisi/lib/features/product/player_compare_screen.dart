@@ -80,15 +80,19 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     _load();
   }
 
-  Map<String, int> _skills(Map<String, dynamic>? side) {
+  Map<String, int?> _skills(Map<String, dynamic>? side) {
     if (side == null) return {};
     final skills = side['skills'];
     if (skills is! Map) return {};
-    int v(String k) {
+    int? v(String k) {
       final raw = skills[k];
-      if (raw is int) return raw;
-      if (raw is num) return raw.toInt();
-      return 0;
+      if (raw == null) return null;
+      if (raw is int) return raw > 0 ? raw : null;
+      if (raw is num) {
+        final n = raw.toInt();
+        return n > 0 ? n : null;
+      }
+      return null;
     }
 
     return {
@@ -136,7 +140,10 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
           if (_loading) const Center(child: CircularProgressIndicator(color: _green)),
           if (_error != null)
             Text(_error!, style: const TextStyle(color: Colors.redAccent)),
-          if (!_loading && _b != null && skillsA.isNotEmpty && skillsB.isNotEmpty) ...[
+          if (!_loading &&
+              _b != null &&
+              skillsA.values.any((v) => v != null) &&
+              skillsB.values.any((v) => v != null)) ...[
             SizedBox(
               height: 280,
               child: RadarChart(
@@ -198,7 +205,7 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     );
   }
 
-  Widget _metricTable(Map<String, int> a, Map<String, int> b) {
+  Widget _metricTable(Map<String, int?> a, Map<String, int?> b) {
     return Container(
       decoration: BoxDecoration(
         color: _card,
@@ -207,15 +214,34 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
       ),
       child: Column(
         children: ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY'].map((k) {
-          final va = a[k] ?? 0;
-          final vb = b[k] ?? 0;
+          final va = a[k];
+          final vb = b[k];
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
-                SizedBox(width: 36, child: Text('$va', style: const TextStyle(color: _green, fontWeight: FontWeight.bold))),
+                SizedBox(
+                  width: 36,
+                  child: Text(
+                    va != null ? '$va' : '–',
+                    style: TextStyle(
+                      color: va != null ? _green : Colors.white38,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
                 Expanded(child: Text(k, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70))),
-                SizedBox(width: 36, child: Text('$vb', textAlign: TextAlign.end, style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold))),
+                SizedBox(
+                  width: 36,
+                  child: Text(
+                    vb != null ? '$vb' : '–',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      color: vb != null ? Colors.orangeAccent : Colors.white38,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ],
             ),
           );

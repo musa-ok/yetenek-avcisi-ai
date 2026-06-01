@@ -410,15 +410,16 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
               itemCount: 6,
               itemBuilder: (context, index) {
                 final s = skills[index];
-                final val = s['value'] as int;
-                final color = hasAnalysis ? _getScoreColor(val) : Colors.grey;
+                final val = s['value'] as int?;
+                final hasVal = hasAnalysis && val != null && val > 0;
+                final color = hasVal ? _getScoreColor(val!) : Colors.grey;
                 return Container(
                   decoration: BoxDecoration(color: Colors.black.withOpacity(0.3), borderRadius: BorderRadius.circular(12)),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(s['icon'] as IconData, color: color, size: 20),
-                      Text(hasAnalysis ? '$val' : '-', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+                      Text(hasVal ? '$val' : '–', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
                       Text(s['name'] as String, style: TextStyle(color: Colors.white60, fontSize: 9)),
                     ],
                   ),
