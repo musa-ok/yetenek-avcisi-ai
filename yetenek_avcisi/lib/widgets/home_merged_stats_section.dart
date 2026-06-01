@@ -6,23 +6,23 @@ import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../core/constants/app_constants.dart';
+import '../app_theme.dart';
 import '../core/utils/fifa_share_image.dart';
 import '../core/utils/fifa_six_stats.dart';
 import '../core/utils/share_helper.dart';
-import '../main.dart' show kElevatedCard, kPitchGreen, L10n;
+import 'home_merged_stats_labels.dart';
 
 /// Ana sayfa — birleştirilmiş güncel 6 stat + hero OVR + paylaşım.
 class HomeMergedStatsSection extends StatefulWidget {
   const HomeMergedStatsSection({
     super.key,
     required this.merged,
-    required this.l,
+    required this.labels,
     required this.playerName,
   });
 
   final MergedLatestSixStats merged;
-  final L10n l;
+  final HomeMergedStatsLabels labels;
   final String playerName;
 
   @override
@@ -56,16 +56,17 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
       await file.writeAsBytes(png);
 
       final m = widget.merged;
+      final lab = widget.labels;
       final lines = <String>[
         '🎮 ${widget.playerName}',
-        '${widget.l.ratingOverall}: ${m.displayOverall}',
-        '${widget.l.statPace}: ${m.displayStat(m.pace)}',
-        '${widget.l.statShooting}: ${m.displayStat(m.finishing)}',
-        '${widget.l.statPassing}: ${m.displayStat(m.passing)}',
-        '${widget.l.statDribbling}: ${m.displayStat(m.dribbling)}',
-        '${widget.l.statDefending}: ${m.displayStat(m.defending)}',
-        '${widget.l.statPhysical}: ${m.displayStat(m.strength)}',
-        '${AppConstants.appName}',
+        '${lab.ratingOverall}: ${m.displayOverall}',
+        '${lab.statPace}: ${m.displayStat(m.pace)}',
+        '${lab.statShooting}: ${m.displayStat(m.finishing)}',
+        '${lab.statPassing}: ${m.displayStat(m.passing)}',
+        '${lab.statDribbling}: ${m.displayStat(m.dribbling)}',
+        '${lab.statDefending}: ${m.displayStat(m.defending)}',
+        '${lab.statPhysical}: ${m.displayStat(m.strength)}',
+        lab.appName,
       ];
 
       await ShareHelper.shareXFiles(
@@ -75,7 +76,7 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
       );
     } catch (e) {
       messenger?.showSnackBar(
-        SnackBar(content: Text('${widget.l.shareFailed}: $e')),
+        SnackBar(content: Text('${widget.labels.shareFailed}: $e')),
       );
     } finally {
       if (mounted) setState(() => _sharing = false);
@@ -85,15 +86,17 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
   @override
   Widget build(BuildContext context) {
     final m = widget.merged;
-    final l = widget.l;
+    final lab = widget.labels;
+    const accent = AppColors.accentGreen;
+    const cardBg = AppColors.cardBackground;
 
     final gridStats = <_GridStat>[
-      _GridStat(l.statPace, m.displayStat(m.pace), Icons.directions_run_rounded),
-      _GridStat(l.statShooting, m.displayStat(m.finishing), Icons.sports_soccer_rounded),
-      _GridStat(l.statPassing, m.displayStat(m.passing), Icons.swap_horiz_rounded),
-      _GridStat(l.statDribbling, m.displayStat(m.dribbling), Icons.control_camera_rounded),
-      _GridStat(l.statDefending, m.displayStat(m.defending), Icons.shield_outlined),
-      _GridStat(l.statPhysical, m.displayStat(m.strength), Icons.fitness_center_rounded),
+      _GridStat(lab.statPace, m.displayStat(m.pace), Icons.directions_run_rounded),
+      _GridStat(lab.statShooting, m.displayStat(m.finishing), Icons.sports_soccer_rounded),
+      _GridStat(lab.statPassing, m.displayStat(m.passing), Icons.swap_horiz_rounded),
+      _GridStat(lab.statDribbling, m.displayStat(m.dribbling), Icons.control_camera_rounded),
+      _GridStat(lab.statDefending, m.displayStat(m.defending), Icons.shield_outlined),
+      _GridStat(lab.statPhysical, m.displayStat(m.strength), Icons.fitness_center_rounded),
     ];
 
     return Column(
@@ -103,7 +106,7 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
           children: [
             Expanded(
               child: Text(
-                l.sectionMyStats,
+                lab.sectionTitle,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -112,7 +115,7 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
               ),
             ),
             IconButton(
-              tooltip: l.shareStats,
+              tooltip: lab.shareStats,
               onPressed: _sharing ? null : _shareStats,
               icon: _sharing
                   ? const SizedBox(
@@ -120,17 +123,17 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
                       height: 22,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: kPitchGreen,
+                        color: accent,
                       ),
                     )
-                  : const Icon(Icons.ios_share_rounded, color: kPitchGreen),
+                  : const Icon(Icons.ios_share_rounded, color: accent),
             ),
           ],
         ),
         if (!m.hasMeasurableStats) ...[
           const SizedBox(height: 6),
           Text(
-            l.myStatsEmptyHint,
+            lab.myStatsEmptyHint,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.55),
               height: 1.4,
@@ -143,14 +146,14 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
             decoration: BoxDecoration(
-              color: kElevatedCard,
+              color: cardBg,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white12),
             ),
             child: Column(
               children: [
                 Text(
-                  l.ratingOverall,
+                  lab.ratingOverall,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.65),
                     fontSize: 13,
@@ -188,6 +191,7 @@ class _HeroOvrBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const accent = AppColors.accentGreen;
     return Container(
       width: 132,
       height: 132,
@@ -195,26 +199,26 @@ class _HeroOvrBadge extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: LinearGradient(
           colors: [
-            kPitchGreen.withValues(alpha: 0.35),
-            kPitchGreen.withValues(alpha: 0.08),
+            accent.withValues(alpha: 0.35),
+            accent.withValues(alpha: 0.08),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: kPitchGreen.withValues(alpha: 0.25),
+            color: accent.withValues(alpha: 0.25),
             blurRadius: 28,
             spreadRadius: 2,
           ),
         ],
-        border: Border.all(color: kPitchGreen, width: 2.5),
+        border: Border.all(color: accent, width: 2.5),
       ),
       alignment: Alignment.center,
       child: Text(
         value,
         style: TextStyle(
-          color: value == '—' ? Colors.white38 : kPitchGreen,
+          color: value == '—' ? Colors.white38 : accent,
           fontSize: value.length >= 2 ? 48 : 52,
           fontWeight: FontWeight.w900,
           height: 1,
@@ -238,15 +242,16 @@ class _StatGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const accent = AppColors.accentGreen;
     final hasValue = stat.value != '—';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF0B0F19),
+        color: AppColors.scaffoldBackground,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: hasValue
-              ? kPitchGreen.withValues(alpha: 0.35)
+              ? accent.withValues(alpha: 0.35)
               : Colors.white10,
         ),
       ),
@@ -254,7 +259,7 @@ class _StatGridCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(stat.icon, color: kPitchGreen, size: 22),
+          Icon(stat.icon, color: accent, size: 22),
           Text(
             stat.title,
             maxLines: 1,
@@ -268,7 +273,7 @@ class _StatGridCard extends StatelessWidget {
           Text(
             stat.value,
             style: TextStyle(
-              color: hasValue ? kPitchGreen : Colors.white38,
+              color: hasValue ? accent : Colors.white38,
               fontSize: 26,
               fontWeight: FontWeight.w800,
             ),

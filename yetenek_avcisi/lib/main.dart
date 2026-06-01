@@ -27,7 +27,9 @@ import 'package:yetenek_avcisi/widgets/smart_summary_card.dart';
 import 'package:yetenek_avcisi/widgets/slot_breakdown_card.dart';
 import 'package:yetenek_avcisi/widgets/combined_ovr_strip.dart';
 import 'package:yetenek_avcisi/widgets/scoutiq_logo_mark.dart';
+import 'package:yetenek_avcisi/core/app_notifiers.dart';
 import 'package:yetenek_avcisi/widgets/home_merged_stats_section.dart';
+import 'package:yetenek_avcisi/widgets/home_merged_stats_labels.dart';
 import 'package:yetenek_avcisi/core/deep_link/deep_link_service.dart';
 import 'package:yetenek_avcisi/core/utils/fifa_six_stats.dart';
 import 'package:yetenek_avcisi/core/settings/app_settings.dart';
@@ -62,17 +64,6 @@ enum AppLanguage { tr, en }
 final ValueNotifier<AppLanguage> appLanguageNotifier = ValueNotifier(
   AppLanguage.tr,
 );
-final ValueNotifier<MergedLatestSixStats?> homeMergedStatsNotifier =
-    ValueNotifier<MergedLatestSixStats?>(null);
-
-/// Oyuncunun en az bir analiz oturumu var mı (FAB metni için).
-final ValueNotifier<int> myAnalysisSessionCountNotifier = ValueNotifier<int>(0);
-
-// Global oyuncu havuzu yenileme sinyali. Bir oyuncu için AI analizi
-// tamamlanınca arttırılır; ExploreScreen gibi listeleyici ekranlar
-// dinleyip `BackendApi.fetchPlayers()` ile tazelenir.
-final ValueNotifier<int> playersRefreshNotifier = ValueNotifier<int>(0);
-
 Future<void> _loadSavedLanguage() async {
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -441,21 +432,23 @@ class L10nScope extends InheritedWidget {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (kDebugMode) {
-    ErrorWidget.builder = (details) => Material(
-          color: const Color(0xFF0B0F19),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                details.exceptionAsString(),
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
+  ErrorWidget.builder = (details) => Material(
+        color: const Color(0xFF0B0F19),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              details.exceptionAsString(),
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              textAlign: TextAlign.center,
             ),
           ),
-        );
-  }
+        ),
+      );
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('[FlutterError] ${details.exceptionAsString()}');
+  };
   await _loadSavedLanguage();
   try {
     await PushNotificationService.initialize();
@@ -2490,7 +2483,20 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                         ),
                         child: HomeMergedStatsSection(
                           merged: mergedForUi,
-                          l: l,
+                          labels: HomeMergedStatsLabels(
+                            sectionTitle: l.sectionMyStats,
+                            ratingOverall: l.ratingOverall,
+                            statPace: l.statPace,
+                            statShooting: l.statShooting,
+                            statPassing: l.statPassing,
+                            statDribbling: l.statDribbling,
+                            statDefending: l.statDefending,
+                            statPhysical: l.statPhysical,
+                            myStatsEmptyHint: l.myStatsEmptyHint,
+                            shareStats: l.shareStats,
+                            shareFailed: l.shareFailed,
+                            appName: AppConstants.appName,
+                          ),
                           playerName: widget.user.displayName,
                         ),
                       ),

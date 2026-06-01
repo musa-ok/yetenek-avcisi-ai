@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:yetenek_avcisi/app_services.dart';
 
 import '../../services/multi_upload_service.dart';
@@ -333,6 +334,18 @@ int? _pickLatestStat(
 MergedLatestSixStats? buildMergedLatestSixStats(List<MultiVideoPlayer> players) {
   if (players.isEmpty) return null;
 
+  try {
+    return _buildMergedLatestSixStatsImpl(players);
+  } catch (e, st) {
+    assert(() {
+      debugPrint('[buildMergedLatestSixStats] $e\n$st');
+      return true;
+    }());
+    return null;
+  }
+}
+
+MergedLatestSixStats? _buildMergedLatestSixStatsImpl(List<MultiVideoPlayer> players) {
   final newestFirst = sortAnalysesNewestFirst(players);
   final pace = _pickLatestStat(newestFirst, (s) => s.pace);
   final finishing = _pickLatestStat(newestFirst, (s) => s.finishing);

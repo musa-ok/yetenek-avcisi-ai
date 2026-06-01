@@ -12,7 +12,8 @@ import '../core/settings/app_settings.dart';
 import '../core/utils/fifa_six_stats.dart';
 import '../services/multi_upload_service.dart';
 import '../widgets/analysis_finalize_dialog.dart';
-import '../main.dart' show homeMergedStatsNotifier, myAnalysisSessionCountNotifier, playersRefreshNotifier, kPitchGreen;
+import '../core/app_notifiers.dart';
+import '../main.dart' show kPitchGreen;
 import 'player_stats_screen.dart';
 import 'privacy_policy_screen.dart';
 
