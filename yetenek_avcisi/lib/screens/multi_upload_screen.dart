@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../app_theme.dart';
 import '../app_services.dart';
 import '../core/settings/app_settings.dart';
+import '../core/utils/fifa_six_stats.dart';
 import '../services/multi_upload_service.dart';
 import '../widgets/analysis_finalize_dialog.dart';
 import '../main.dart' show latestAnalysisNotifier, AnalysisResult, playersRefreshNotifier, kPitchGreen;
@@ -791,14 +792,15 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
       // Ana sayfadaki "Benim İstatistiklerim" listesinin güncel skorları
       // göstermesi için global notifier'ı set et.
+      final six = finalizedPlayer.fifaSix;
       latestAnalysisNotifier.value = AnalysisResult(
         overall: finalizedPlayer.overallRating,
-        pace: finalizedPlayer.pace,
-        finishing: finalizedPlayer.finishing,
-        passing: finalizedPlayer.passing,
-        dribbling: finalizedPlayer.dribbling,
-        defending: finalizedPlayer.defending,
-        physical: finalizedPlayer.strength,
+        pace: six.pace,
+        finishing: six.finishing,
+        passing: six.passing,
+        dribbling: six.dribbling,
+        defending: six.defending,
+        physical: six.strength,
         report: finalizedPlayer.aiSummaryReport ?? '',
       );
 
