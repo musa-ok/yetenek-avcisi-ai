@@ -183,7 +183,7 @@ extension MultiVideoPlayerFifaSix on MultiVideoPlayer {
 /// Keşfet / oyuncu detay kartı (PlayerListItem).
 extension PlayerListItemFifaSix on PlayerListItem {
   FifaSixStats get fifaSix => resolveFifaSixStats(
-        overallRating: overallRating,
+        overallRating: fifaCardOvr,
         pace: pac,
         finishing: sho,
         passing: pas,

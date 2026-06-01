@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
@@ -425,6 +426,21 @@ class L10nScope extends InheritedWidget {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kDebugMode) {
+    ErrorWidget.builder = (details) => Material(
+          color: const Color(0xFF0B0F19),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                details.exceptionAsString(),
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        );
+  }
   await _loadSavedLanguage();
   try {
     await PushNotificationService.initialize();
@@ -432,8 +448,16 @@ void main() async {
     debugPrint('[FCM] main init hatasi: $e\n$st');
   }
   await SessionStore.restoreIntoNotifier();
-  await PushNotificationService.applyNotificationPreference();
-  await DeepLinkService.init();
+  try {
+    await PushNotificationService.applyNotificationPreference();
+  } catch (e, st) {
+    debugPrint('[FCM] preference sync: $e\n$st');
+  }
+  try {
+    await DeepLinkService.init();
+  } catch (e, st) {
+    debugPrint('[DeepLink] init: $e\n$st');
+  }
   currentAccessTokenNotifier.addListener(() {
     PushNotificationService.applyNotificationPreference();
   });
@@ -514,8 +538,10 @@ class _ScoutiqAppState extends State<ScoutiqApp> {
               behavior: SnackBarBehavior.floating,
             ),
           ),
-          builder: (context, child) =>
-              L10nScope(l10n: l10n, child: child ?? const SizedBox.shrink()),
+          builder: (context, child) => L10nScope(
+            l10n: l10n,
+            child: child ?? const SplashScreen(),
+          ),
           home: const SplashScreen(),
         );
       },
@@ -3271,7 +3297,7 @@ class ExplorePlayerCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  OvrBadge(ovr: player.overallRating),
+                  OvrBadge(ovr: player.scoutInfluencedOvr),
                 ],
               ),
               const SizedBox(height: 14),
@@ -4089,7 +4115,7 @@ class CarouselPlayerCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  OvrBadge(ovr: player.overallRating),
+                  OvrBadge(ovr: player.scoutInfluencedOvr),
                 ],
               ),
               const SizedBox(height: 14),
@@ -6788,7 +6814,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                     ],
                   ),
                 ),
-                OvrBadge(ovr: p.aiOvr ?? p.overallRating),
+                OvrBadge(ovr: p.scoutInfluencedOvr),
               ],
             ),
             const SizedBox(height: 24),
@@ -6800,8 +6826,8 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
             ),
             const SizedBox(height: 10),
             CombinedOvrStrip(
-              aiOvr: p.aiOvr ?? p.overallRating,
-              displayOvr: p.overallRating,
+              aiOvr: p.fifaCardOvr,
+              displayOvr: p.scoutInfluencedOvr,
               communityOvr: p.communityOvr,
               scoutCount: p.scoutCountForRating,
             ),
@@ -6961,7 +6987,7 @@ class FifaCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayOvr = player.aiOvr ?? player.overallRating;
+    final cardOvr = player.fifaCardOvr;
     final six = player.fifaSix;
 
     return Container(
@@ -7001,7 +7027,7 @@ class FifaCardWidget extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$displayOvr',
+                      '$cardOvr',
                       style: const TextStyle(
                         color: Color(0xFFFFD166),
                         fontSize: 42,
@@ -7065,9 +7091,9 @@ class FifaCardWidget extends StatelessWidget {
                 Expanded(
                   child: _FifaStatColumn(
                     stats: [
-                      ('PAC', six.pace ?? displayOvr),
-                      ('SHO', six.finishing ?? displayOvr),
-                      ('PAS', six.passing ?? displayOvr),
+                      ('PAC', six.pace ?? cardOvr),
+                      ('SHO', six.finishing ?? cardOvr),
+                      ('PAS', six.passing ?? cardOvr),
                     ],
                   ),
                 ),
@@ -7075,9 +7101,9 @@ class FifaCardWidget extends StatelessWidget {
                 Expanded(
                   child: _FifaStatColumn(
                     stats: [
-                      ('DRI', six.dribbling ?? displayOvr),
-                      ('DEF', six.defending ?? displayOvr),
-                      ('PHY', six.strength ?? displayOvr),
+                      ('DRI', six.dribbling ?? cardOvr),
+                      ('DEF', six.defending ?? cardOvr),
+                      ('PHY', six.strength ?? cardOvr),
                     ],
                   ),
                 ),

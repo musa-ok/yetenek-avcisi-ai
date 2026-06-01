@@ -60,14 +60,19 @@ def apply_combined_to_player_payload(
     ai_ovr: int,
     community: dict[str, Any],
 ) -> dict[str, Any]:
-    """DTO'ya birleşik skor alanlarını ekler; overall_rating = görünür skor."""
-    combined = build_combined_rating(ai_ovr, community)
+    """
+    Scout birleşik OVR → overall_rating / combined_ovr (liste, rozet).
+    FIFA kartı → ai_ovr / fifa_ovr (yalnızca AI analizi; scout etkilemez).
+    """
+    ai = max(0, min(100, int(ai_ovr or 0)))
+    combined = build_combined_rating(ai, community)
     display = combined.get("display_ovr")
     if display is None:
-        display = ai_ovr or 0
+        display = ai or 0
 
     payload["overall_rating"] = display
-    payload["ai_ovr"] = combined.get("ai_ovr") if combined.get("ai_ovr") is not None else (ai_ovr or 0)
+    payload["ai_ovr"] = ai if ai > 0 else None
+    payload["fifa_ovr"] = ai if ai > 0 else None
     payload["combined_ovr"] = combined.get("combined_ovr")
     payload["community_ovr"] = combined.get("community_ovr")
     payload["combined_rating"] = combined

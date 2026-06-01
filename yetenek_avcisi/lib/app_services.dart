@@ -171,6 +171,7 @@ class PlayerListItem {
     this.slotBreakdown = const [],
     this.analysisVersion,
     this.aiOvr,
+    this.fifaOvr,
     this.communityOvr,
     this.combinedOvr,
     this.scoutCountForRating = 0,
@@ -206,9 +207,17 @@ class PlayerListItem {
   final List<Map<String, dynamic>> slotBreakdown;
   final String? analysisVersion;
   final int? aiOvr;
+  /// FIFA kartı — yalnızca AI analiz OVR (scout birleşimi yok).
+  final int? fifaOvr;
   final int? communityOvr;
   final int? combinedOvr;
   final int scoutCountForRating;
+
+  /// Scout + AI birleşik OVR (rozet, Keşfet listesi).
+  int get scoutInfluencedOvr => combinedOvr ?? overallRating;
+
+  /// FIFA kartında gösterilecek OVR (sadece AI; scout birleşimi hariç).
+  int get fifaCardOvr => fifaOvr ?? aiOvr ?? overallRating;
 
   PlayerListItem copyWith({
     String? name,
@@ -337,7 +346,8 @@ class PlayerListItem {
           : const [],
       slotBreakdown: _parseSlotBreakdownMap(m),
       analysisVersion: _readOptionalString(m, 'analysis_version', 'analysisVersion'),
-      aiOvr: _readCombinedInt(m, const ['ai_ovr', 'aiOvr']) ?? overall,
+      aiOvr: _readCombinedInt(m, const ['ai_ovr', 'aiOvr']),
+      fifaOvr: _readCombinedInt(m, const ['fifa_ovr', 'fifaOvr', 'ai_ovr', 'aiOvr']),
       communityOvr: _readCombinedInt(m, const ['community_ovr', 'communityOvr']),
       combinedOvr: _readCombinedInt(m, const ['combined_ovr', 'combinedOvr']),
       scoutCountForRating: _readScoutCountForRating(m),
