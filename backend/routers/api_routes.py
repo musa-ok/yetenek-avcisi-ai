@@ -581,35 +581,14 @@ def create_multivideo_player(user_id: int, name: str, birth_date: str, position:
 
 @router.post("/players/multivideo/create-from-auth")
 def create_multivideo_player_from_auth(position: str = Form(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    from position_skills_config import get_position_code
-    from datetime import datetime, timezone
+    from position_skills_config import get_position_code, get_required_video_count
+
     position_code = get_position_code(position)
     name = current_user.full_name or current_user.email.split('@')[0]
     age = current_user.age or 18
-    
-    # Tek birleşik FIFA kartı: aynı kullanıcı için mevcut kaydı yeniden kullan
-    player = (
-        db.query(models_multivideo.PlayerMultiVideo)
-        .filter(models_multivideo.PlayerMultiVideo.user_id == current_user.id)
-        .order_by(models_multivideo.PlayerMultiVideo.id.asc())
-        .first()
-    )
-    from position_skills_config import get_required_video_count
-
     n = get_required_video_count(position)
-    if player:
-        player.position = position
-        player.position_code = position_code
-        player.name = name
-        player.age = age
-        db.commit()
-        db.refresh(player)
-        return {
-            "message": f"Mevcut kart güncellendi ({position}). Şimdi {n} video yükleyin.",
-            "player": player.to_dict(),
-            "reused": True,
-        }
 
+    # Her yükleme oturumu ayrı kayıt; Keşfet'te mevki başına en güncel analiz kalır.
     player = models_multivideo.PlayerMultiVideo(
         user_id=current_user.id,
         name=name,
@@ -620,14 +599,36 @@ def create_multivideo_player_from_auth(position: str = Form(...), db: Session = 
         skill_scores={},
         ai_strengths=[],
         ai_improvements=[],
+        discover_visible=False,
     )
     db.add(player)
     db.commit()
     db.refresh(player)
     return {
-        "message": f"{name} için kayıt oluşturuldu. Şimdi {n} video yükleyin.",
+        "message": f"{name} için yeni analiz oturumu ({position}). Şimdi {n} video yükleyin.",
         "player": player.to_dict(),
         "reused": False,
+    }
+
+
+@router.get("/players/multivideo/mine")
+def list_my_multivideo_analyses(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Oyuncunun tüm analiz oturumları (Keşfet'ten gizlenenler dahil), en yeni önce."""
+    players = (
+        db.query(models_multivideo.PlayerMultiVideo)
+        .filter(models_multivideo.PlayerMultiVideo.user_id == current_user.id)
+        .order_by(
+            models_multivideo.PlayerMultiVideo.created_at.desc(),
+            models_multivideo.PlayerMultiVideo.id.desc(),
+        )
+        .all()
+    )
+    return {
+        "total": len(players),
+        "players": [p.to_dict() for p in players],
     }
 
 # ── UPLOAD SLOT: uyumluluk kontrolü + video kaydet ───────────────────────────
@@ -836,6 +837,7 @@ async def upload_kosu_slot_video(
 def list_multivideo_players(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     players = (
         db.query(models_multivideo.PlayerMultiVideo)
+        .filter(models_multivideo.PlayerMultiVideo.discover_visible.is_(True))
         .filter(models_multivideo.PlayerMultiVideo.ai_summary_report.isnot(None))
         .filter(models_multivideo.PlayerMultiVideo.overall_rating > 35)
         .offset(skip)

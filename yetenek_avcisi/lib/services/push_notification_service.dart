@@ -150,11 +150,64 @@ class PushNotificationService {
     }
 
     final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission(alert: true, badge: true, sound: true);
+    final settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    final authorized = settings.authorizationStatus ==
+            AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
+    if (!authorized) {
+      await AppSettings.setNotificationsEnabled(false);
+      await _clearDeviceAndBackendToken();
+      throw StateError(
+        'Sistem bildirim izni verilmedi. iPhone Ayarlar → Scoutiq → Bildirimler bölümünden açın.',
+      );
+    }
     await syncTokenWithBackend();
   }
 
   static Future<bool> isPushEnabledOnDevice() async {
-    return AppSettings.areNotificationsEnabled();
+    return loadEffectivePushEnabled();
+  }
+
+  /// Uygulama tercihi + iOS/Android sistem izni birlikte.
+  static Future<bool> loadEffectivePushEnabled() async {
+    final appOn = await AppSettings.areNotificationsEnabled();
+    if (!appOn) return false;
+    if (kIsWeb) return false;
+
+    if (!_initialized) {
+      await initialize();
+    }
+    if (!_initialized) return appOn;
+
+    try {
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      final status = settings.authorizationStatus;
+
+      if (status == AuthorizationStatus.denied) {
+        await AppSettings.setNotificationsEnabled(false);
+        await _clearDeviceAndBackendToken();
+        return false;
+      }
+
+      if (status != AuthorizationStatus.authorized &&
+          status != AuthorizationStatus.provisional) {
+        return false;
+      }
+
+      await syncTokenWithBackend();
+      return true;
+    } catch (e) {
+      debugPrint('[FCM] izin durumu okunamadi: $e');
+      return appOn;
+    }
+  }
+
+  /// Ayarlar ekranı: anahtar durumu + gerekirse tercihi sistemle hizala.
+  static Future<bool> refreshPushPreferenceForSettings() async {
+    return loadEffectivePushEnabled();
   }
 }

@@ -1,3 +1,5 @@
+import 'package:yetenek_avcisi/app_services.dart';
+
 import '../../services/multi_upload_service.dart';
 
 /// FIFA kartı / istatistik ekranı için 6 ana metrik (ölçülmeyen = null).
@@ -114,13 +116,44 @@ FifaSixStats resolveFifaSixStats({
         _readInt(ss['physical_attributes']);
   }
 
-  return FifaSixStats(
+  final raw = FifaSixStats(
     pace: _clampStat(pac),
     finishing: _clampStat(sho),
     passing: _clampStat(pas),
     dribbling: _clampStat(dri),
     defending: _clampStat(def),
     strength: _clampStat(phy),
+  );
+  return fillMissingFifaStatsWithAverage(raw, fallbackOvr: overallRating);
+}
+
+/// Ölçülmemiş FIFA altı değerleri, ölçülenlerin ortalamasıyla doldurulur (UI).
+FifaSixStats fillMissingFifaStatsWithAverage(
+  FifaSixStats six, {
+  required int fallbackOvr,
+}) {
+  final measured = [
+    six.pace,
+    six.finishing,
+    six.passing,
+    six.dribbling,
+    six.defending,
+    six.strength,
+  ].whereType<int>().where((v) => v > 0).toList();
+
+  final fill = measured.isEmpty
+      ? fallbackOvr.clamp(1, 99)
+      : (measured.reduce((a, b) => a + b) / measured.length).round().clamp(1, 99);
+
+  int pick(int? v) => (v != null && v > 0) ? v : fill;
+
+  return FifaSixStats(
+    pace: pick(six.pace),
+    finishing: pick(six.finishing),
+    passing: pick(six.passing),
+    dribbling: pick(six.dribbling),
+    defending: pick(six.defending),
+    strength: pick(six.strength),
   );
 }
 
@@ -143,6 +176,21 @@ extension MultiVideoPlayerFifaSix on MultiVideoPlayer {
         strength: strength,
         physicalAttributes: physicalAttributes,
         skillScores: skillScores,
+        slotBreakdown: slotBreakdown,
+      );
+}
+
+/// Keşfet / oyuncu detay kartı (PlayerListItem).
+extension PlayerListItemFifaSix on PlayerListItem {
+  FifaSixStats get fifaSix => resolveFifaSixStats(
+        overallRating: overallRating,
+        pace: pac,
+        finishing: sho,
+        passing: pas,
+        dribbling: dri,
+        defending: def,
+        strength: phy,
+        skillScores: const {},
         slotBreakdown: slotBreakdown,
       );
 }

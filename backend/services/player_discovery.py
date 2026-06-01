@@ -22,6 +22,7 @@ def query_discoverable_players(
 ):
     q = (
         db.query(models_multivideo.PlayerMultiVideo)
+        .filter(models_multivideo.PlayerMultiVideo.discover_visible.is_(True))
         .filter(models_multivideo.PlayerMultiVideo.ai_summary_report.isnot(None))
         .filter(models_multivideo.PlayerMultiVideo.overall_rating > 35)
     )

@@ -2053,9 +2053,7 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
     try {
-      final all = await MultiUploadService.listPlayers();
-      final mine = all.where((p) => p.userId == user!.id).toList()
-        ..sort((a, b) => b.id.compareTo(a.id));
+      final mine = await MultiUploadService.listMyAnalyses();
       final count = mine.isNotEmpty ? mine.first.requiredVideoCount : null;
       if (mounted) setState(() => _myRequiredVideoCount = count);
     } catch (_) {
@@ -2221,12 +2219,10 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
   }
 
   // Kullanıcının en son çoklu-video analizini çek ve global notifier'a yaz.
-  // Ölçülen slot skorları; ölçülmeyen FIFA altı "—" kalır.
+  // Birleşik kart: ölçülmeyen alt statlar ölçülenlerin ortalamasıyla doldurulur.
   Future<void> _loadLatestAnalysis() async {
     try {
-      final all = await MultiUploadService.listPlayers();
-      final myId = widget.user.id;
-      final mine = all.where((p) => p.userId == myId).toList();
+      final mine = await MultiUploadService.listMyAnalyses();
       final unified = buildUnifiedFifaFromPlayers(mine);
       if (unified == null) return;
       latestAnalysisNotifier.value = AnalysisResult(
@@ -2244,8 +2240,11 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
     }
   }
 
-  String _statOrDash(int? v) =>
-      v == null || v <= 0 ? '—' : '$v';
+  String _statDisplay(int? v, {required int fallback}) {
+    if (v != null && v > 0) return '$v';
+    if (fallback > 0) return '$fallback';
+    return '—';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2273,40 +2272,52 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
           valueListenable: latestAnalysisNotifier,
           builder: (context, latest, _) {
             final hasStats = latest != null && latest.overall > 0;
+            final ovr = latest?.overall ?? 0;
+            final measured = [
+              latest?.pace,
+              latest?.finishing,
+              latest?.passing,
+              latest?.dribbling,
+              latest?.defending,
+              latest?.physical,
+            ].whereType<int>().where((v) => v > 0).toList();
+            final avgFill = measured.isEmpty
+                ? ovr
+                : (measured.reduce((a, b) => a + b) / measured.length).round();
             final stats = [
               PlayerStat(
                 title: l.ratingOverall,
-                value: _statOrDash(latest?.overall),
+                value: _statDisplay(latest?.overall, fallback: ovr),
                 icon: Icons.emoji_events_outlined,
               ),
               PlayerStat(
                 title: l.statPace,
-                value: _statOrDash(latest?.pace),
+                value: _statDisplay(latest?.pace, fallback: avgFill),
                 icon: Icons.directions_run_rounded,
               ),
               PlayerStat(
                 title: l.statFinishing,
-                value: _statOrDash(latest?.finishing),
+                value: _statDisplay(latest?.finishing, fallback: avgFill),
                 icon: Icons.sports_soccer_rounded,
               ),
               PlayerStat(
                 title: l.statPassing,
-                value: _statOrDash(latest?.passing),
+                value: _statDisplay(latest?.passing, fallback: avgFill),
                 icon: Icons.swap_horiz_rounded,
               ),
               PlayerStat(
                 title: l.statDribbling,
-                value: _statOrDash(latest?.dribbling),
+                value: _statDisplay(latest?.dribbling, fallback: avgFill),
                 icon: Icons.control_camera_rounded,
               ),
               PlayerStat(
                 title: l.statDefending,
-                value: _statOrDash(latest?.defending),
+                value: _statDisplay(latest?.defending, fallback: avgFill),
                 icon: Icons.shield_outlined,
               ),
               PlayerStat(
                 title: l.statPhysical,
-                value: _statOrDash(latest?.physical),
+                value: _statDisplay(latest?.physical, fallback: avgFill),
                 icon: Icons.fitness_center_rounded,
               ),
             ];
@@ -3763,11 +3774,11 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final pushOn = await PushNotificationService.refreshPushPreferenceForSettings();
       if (!mounted) return;
 
       setState(() {
-        _notificationsEnabled =
-            prefs.getBool(AppSettings.notificationsKey) ?? true;
+        _notificationsEnabled = pushOn;
         _mobileUploadAllowed =
             prefs.getBool(AppSettings.mobileUploadKey) ?? false;
         _loading = false;
@@ -3805,7 +3816,7 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
     setState(() => _saving = true);
     try {
       await PushNotificationService.setNotificationsEnabled(value);
-      final actual = await AppSettings.areNotificationsEnabled();
+      final actual = await PushNotificationService.loadEffectivePushEnabled();
       if (!mounted) return;
       setState(() => _notificationsEnabled = actual);
       _showSettingsSnack(
@@ -3813,10 +3824,12 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      final actual = await AppSettings.areNotificationsEnabled();
+      final actual = await PushNotificationService.loadEffectivePushEnabled();
       setState(() => _notificationsEnabled = actual);
       _showSettingsSnack(
-        '${l.settingsLoadFailed} ${e is StateError ? e.message : ''}'.trim(),
+        e is StateError
+            ? e.message
+            : '${l.settingsLoadFailed} ${e is StateError ? e.message : ''}'.trim(),
         isError: true,
       );
     } finally {
@@ -4761,11 +4774,8 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
   Future<void> _loadMyPlayers() async {
     if (mounted) setState(() => isLoading = true);
     try {
-      final allPlayers = await MultiUploadService.listPlayers();
-      final userId = currentUserNotifier.value?.id ?? 0;
-
-      final myPlayers = allPlayers
-          .where((p) => p.userId == userId && p.videos.any((v) => v.isUploaded))
+      final myPlayers = (await MultiUploadService.listMyAnalyses())
+          .where((p) => p.videos.any((v) => v.isUploaded))
           .toList();
 
       if (mounted) {
@@ -4852,17 +4862,22 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
   }
 
   Widget _buildStatsList() {
-    final unified = buildUnifiedFifaFromPlayers(players);
     final completedPlayers = players
         .where((p) =>
             p.isComplete &&
             (p.aiSummaryReport?.isNotEmpty ?? false) &&
             p.aiSummaryReport != 'Rapor oluşturulamadı')
         .toList()
-      ..sort((a, b) => b.id.compareTo(a.id));
+      ..sort((a, b) {
+        final da = a.updatedAt ?? a.createdAt ?? '';
+        final db = b.updatedAt ?? b.createdAt ?? '';
+        final byDate = db.compareTo(da);
+        if (byDate != 0) return byDate;
+        return b.id.compareTo(a.id);
+      });
     final incompletePlayers = players.where((p) => !p.isComplete).toList();
 
-    if (unified == null && incompletePlayers.isEmpty) {
+    if (completedPlayers.isEmpty && incompletePlayers.isEmpty) {
       return ListView(
         padding: EdgeInsets.all(16),
         children: [_buildEmptyUploadPrompt()],
@@ -4872,147 +4887,20 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
     return ListView(
       padding: EdgeInsets.all(16),
       children: [
-        if (unified != null) ...[
-          _buildUnifiedFifaCard(unified),
-          if (completedPlayers.length > 1) ...[
-            const SizedBox(height: 20),
-            Text(
-              'Analiz oturumları',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
+        if (completedPlayers.isNotEmpty) ...[
+          Text(
+            'Analiz oturumları',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.7),
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
             ),
-            const SizedBox(height: 10),
-          ],
+          ),
+          const SizedBox(height: 10),
+          ...completedPlayers.map(_buildSessionChip),
         ],
-        ...completedPlayers.map(_buildSessionChip),
         ...incompletePlayers.map(_buildPremiumPlayerCard),
       ],
-    );
-  }
-
-  Widget _buildUnifiedFifaCard(UnifiedFifaCard unified) {
-    final scoreColor = _getScoreColor(unified.overallRating);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF111827),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: scoreColor.withValues(alpha: 0.35), width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Birleşik FIFA Kartım',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 17,
-                        ),
-                      ),
-                      Text(
-                        unified.sessionCount > 1
-                            ? '${unified.sessionCount} analiz birleştirildi'
-                            : 'Tüm ölçülen testler',
-                        style: const TextStyle(color: Colors.white38, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                _buildCircularScore(unified.overallRating, scoreColor),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildSixMetricGridFromStats(unified.six, true),
-          ),
-          const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSixMetricGridFromStats(FifaSixStats six, bool hasAnalysis) {
-    final metrics = [
-      {'label': 'Hız', 'value': six.pace, 'icon': Icons.speed},
-      {'label': 'Şut', 'value': six.finishing, 'icon': Icons.sports_soccer},
-      {'label': 'Pas', 'value': six.passing, 'icon': Icons.swap_horiz},
-      {'label': 'Dripling', 'value': six.dribbling, 'icon': Icons.control_camera},
-      {'label': 'Defans', 'value': six.defending, 'icon': Icons.shield_outlined},
-      {'label': 'Fizik', 'value': six.strength, 'icon': Icons.fitness_center},
-    ];
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 1.55,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemCount: 6,
-      itemBuilder: (context, i) {
-        final m = metrics[i];
-        final int? val = hasAnalysis ? m['value'] as int? : null;
-        final bool hasVal = val != null && val > 0;
-        final Color c = hasVal ? _getScoreColor(val!) : Colors.grey.shade700;
-        return Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                c.withValues(alpha: hasVal ? 0.18 : 0.06),
-                c.withValues(alpha: hasVal ? 0.06 : 0.02),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: c.withValues(alpha: hasVal ? 0.35 : 0.15),
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(m['icon'] as IconData, color: c, size: 18),
-              const SizedBox(height: 4),
-              hasVal
-                  ? Text(
-                      '$val',
-                      style: TextStyle(
-                        color: c,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 17,
-                      ),
-                    )
-                  : Text(
-                      '–',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-              Text(
-                m['label'] as String,
-                style: const TextStyle(color: Colors.white38, fontSize: 10),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -5310,28 +5198,26 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
       itemCount: 6,
       itemBuilder: (context, i) {
         final m = metrics[i];
-        final int? val = hasAnalysis ? m['value'] as int? : null;
-        final bool hasVal = val != null && val > 0;
-        final Color c = hasVal ? _getScoreColor(val!) : Colors.grey.shade700;
+        final int? raw = hasAnalysis ? m['value'] as int? : null;
+        final int val = (raw != null && raw > 0) ? raw : player.overallRating;
+        final Color c = _getScoreColor(val);
 
         return Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [c.withOpacity(hasVal ? 0.18 : 0.06), c.withOpacity(hasVal ? 0.06 : 0.02)],
+              colors: [c.withOpacity(0.18), c.withOpacity(0.06)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: c.withOpacity(hasVal ? 0.35 : 0.15), width: 1),
+            border: Border.all(color: c.withOpacity(0.35), width: 1),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(m['icon'] as IconData, color: c, size: 18),
               SizedBox(height: 4),
-              hasVal
-                  ? Text('$val', style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 17))
-                  : Text('–', style: TextStyle(color: Colors.grey.shade600, fontSize: 17, fontWeight: FontWeight.bold)),
+              Text('$val', style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 17)),
               Text(
                 m['label'] as String,
                 style: TextStyle(color: Colors.white38, fontSize: 10),
@@ -5437,14 +5323,9 @@ class _MyVideosScreenState extends State<MyVideosScreen> {
 
   Future<void> _loadMyVideos() async {
     try {
-      final allPlayers = await MultiUploadService.listPlayers();
-      final userId = currentUserNotifier.value?.id ?? 0;
-      
-      // Sadece bu kullanıcıya ait ve en az 1 video yüklenmiş kayıtları göster
-      final myPlayers = allPlayers.where((p) => 
-        p.userId == userId && 
-        p.videos.any((v) => v.isUploaded) // En az 1 video yüklenmiş
-      ).toList();
+      final myPlayers = (await MultiUploadService.listMyAnalyses())
+          .where((p) => p.videos.any((v) => v.isUploaded))
+          .toList();
       
       setState(() {
         players = myPlayers;
@@ -5727,9 +5608,8 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
         return;
       }
 
-      final players = await MultiUploadService.listPlayers();
-      final myPlayers = players
-          .where((p) => p.userId == myId && p.isComplete)
+      final myPlayers = (await MultiUploadService.listMyAnalyses())
+          .where((p) => p.isComplete)
           .toList();
 
       setState(() {
@@ -5909,25 +5789,27 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
 
   Future<void> _loadAnalyses() async {
     try {
-      final players = await MultiUploadService.listPlayers();
-      final myId = currentUserNotifier.value?.id ?? 0;
       final role = (currentUserNotifier.value?.role ?? '').toLowerCase();
-      // Sadece kendi kayıtlarımı göster
-      final myCompleted = players.where((p) {
-        if (role == 'scout') {
-          return p.analysisCompleted ||
-              p.isComplete ||
-              p.analysisFailed ||
-              p.analysisProcessing;
-        }
-        return p.userId == myId &&
-            (p.isComplete || p.analysisStatus != null);
-      }).toList()
-        ..sort((a, b) {
-          final da = a.updatedAt ?? a.createdAt ?? '';
-          final db = b.updatedAt ?? b.createdAt ?? '';
-          return db.compareTo(da);
-        });
+      List<MultiVideoPlayer> myCompleted;
+      if (role == 'scout') {
+        final players = await MultiUploadService.listPlayers();
+        myCompleted = players
+            .where((p) =>
+                p.analysisCompleted ||
+                p.isComplete ||
+                p.analysisFailed ||
+                p.analysisProcessing)
+            .toList();
+      } else {
+        myCompleted = (await MultiUploadService.listMyAnalyses())
+            .where((p) => p.isComplete || p.analysisStatus != null)
+            .toList();
+      }
+      myCompleted.sort((a, b) {
+        final da = a.updatedAt ?? a.createdAt ?? '';
+        final db = b.updatedAt ?? b.createdAt ?? '';
+        return db.compareTo(da);
+      });
 
       setState(() {
         analyzedPlayers = myCompleted;
@@ -6110,7 +5992,33 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                     ),
                   ],
                   SizedBox(height: 6),
-                  _analysisStatusChip(player),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      _analysisStatusChip(player),
+                      if (player.analysisCompleted &&
+                          !player.discoverVisible)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.textMuted.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Keşfet arşivi',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   if (player.aiSummaryReport != null) ...[
                     SizedBox(height: 8),
                     Text(
@@ -6880,7 +6788,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
                     ],
                   ),
                 ),
-                OvrBadge(ovr: p.overallRating),
+                OvrBadge(ovr: p.aiOvr ?? p.overallRating),
               ],
             ),
             const SizedBox(height: 24),
@@ -7051,21 +6959,10 @@ class FifaCardWidget extends StatelessWidget {
 
   final PlayerListItem player;
 
-  // API'den gelen değeri al, yoksa overallRating kullan
-  int _getStat(int? apiValue) {
-    if (apiValue != null && apiValue > 0) return apiValue;
-    return player.overallRating;
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Direkt API değerlerini kullan
-    final pac = _getStat(player.pac);
-    final sho = _getStat(player.sho);
-    final pas = _getStat(player.pas);
-    final dri = _getStat(player.dri);
-    final def = _getStat(player.def);
-    final phy = _getStat(player.phy);
+    final displayOvr = player.aiOvr ?? player.overallRating;
+    final six = player.fifaSix;
 
     return Container(
       padding: const EdgeInsets.all(2),
@@ -7104,7 +7001,7 @@ class FifaCardWidget extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${player.overallRating}',
+                      '$displayOvr',
                       style: const TextStyle(
                         color: Color(0xFFFFD166),
                         fontSize: 42,
@@ -7168,9 +7065,9 @@ class FifaCardWidget extends StatelessWidget {
                 Expanded(
                   child: _FifaStatColumn(
                     stats: [
-                      ('PAC', pac),
-                      ('SHO', sho),
-                      ('PAS', pas),
+                      ('PAC', six.pace ?? displayOvr),
+                      ('SHO', six.finishing ?? displayOvr),
+                      ('PAS', six.passing ?? displayOvr),
                     ],
                   ),
                 ),
@@ -7178,9 +7075,9 @@ class FifaCardWidget extends StatelessWidget {
                 Expanded(
                   child: _FifaStatColumn(
                     stats: [
-                      ('DRI', dri),
-                      ('DEF', def),
-                      ('PHY', phy),
+                      ('DRI', six.dribbling ?? displayOvr),
+                      ('DEF', six.defending ?? displayOvr),
+                      ('PHY', six.strength ?? displayOvr),
                     ],
                   ),
                 ),

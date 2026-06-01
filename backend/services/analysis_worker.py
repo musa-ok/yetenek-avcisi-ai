@@ -239,6 +239,15 @@ def run_multivideo_finalize(player_id: int) -> dict:
         flag_modified(player, "ai_improvements")
         db.commit()
 
+        from services.discover_visibility import refresh_discover_visibility
+
+        refresh_discover_visibility(
+            db,
+            user_id=player.user_id,
+            position=player.position or "",
+            winner_player_id=player.id,
+        )
+
         _notify_player_analysis_success(db, player, old_ovr=old_ovr)
 
         return {"ok": True, "player": player.to_dict()}

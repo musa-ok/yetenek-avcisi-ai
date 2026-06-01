@@ -792,7 +792,7 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
       // Ana sayfadaki "Benim İstatistiklerim" listesinin güncel skorları
       // göstermesi için global notifier'ı set et.
-      final all = await MultiUploadService.listPlayers();
+      final all = await MultiUploadService.listMyAnalyses();
       final userId = finalizedPlayer.userId;
       final unified = buildUnifiedFifaFromPlayers(
         all.where((p) => p.userId == userId).toList(),

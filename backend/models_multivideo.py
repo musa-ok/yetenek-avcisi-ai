@@ -3,7 +3,7 @@ Multi-Video Player Model
 Her oyuncu için 3 ayrı yetenek videosu ve puanları
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -80,7 +80,9 @@ class PlayerMultiVideo(Base):
 
     analysis_status = Column(String(20), nullable=True, index=True)
     analysis_error = Column(Text, nullable=True)
-    
+    # Keşfet vitrini: kullanıcı+mevki başına yalnızca en güncel tamamlanmış analiz True
+    discover_visible = Column(Boolean, nullable=False, default=False, index=True)
+
     owner = relationship("User", back_populates="multivideo_profiles")
     
     @property
@@ -145,6 +147,7 @@ class PlayerMultiVideo(Base):
             "mental_attributes": ss.get("mental_attributes"),
             "analysis_status": self.analysis_status,
             "analysis_error": self.analysis_error,
+            "discover_visible": bool(self.discover_visible),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

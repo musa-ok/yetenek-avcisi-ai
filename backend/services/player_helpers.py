@@ -160,6 +160,7 @@ def multivideo_to_public_dict(
         "skill_scores": skills,
         "analysis_status": p.analysis_status,
         "analysis_error": p.analysis_error,
+        "discover_visible": bool(getattr(p, "discover_visible", False)),
         "created_at": (
             p.created_at.isoformat()
             if p.created_at and hasattr(p.created_at, "isoformat")

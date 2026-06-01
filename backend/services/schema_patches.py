@@ -26,6 +26,7 @@ def ensure_users_columns() -> None:
 
 
 _MULTIVIDEO_COLUMNS = {
+    "discover_visible": "BOOLEAN DEFAULT 0",
     "analysis_status": "VARCHAR(20)",
     "analysis_error": "TEXT",
     "kosu_slot": "INTEGER",
@@ -48,9 +49,21 @@ def ensure_players_multivideo_columns() -> None:
     if "players_multivideo" not in insp.get_table_names():
         return
     existing = {c["name"] for c in insp.get_columns("players_multivideo")}
+    added_discover = False
     with engine.begin() as conn:
         for name, col_type in _MULTIVIDEO_COLUMNS.items():
             if name not in existing:
                 conn.execute(
                     text(f"ALTER TABLE players_multivideo ADD COLUMN {name} {col_type}")
                 )
+                if name == "discover_visible":
+                    added_discover = True
+    if added_discover:
+        from database import SessionLocal
+        from services.discover_visibility import backfill_all_discover_visibility
+
+        db = SessionLocal()
+        try:
+            backfill_all_discover_visibility(db)
+        finally:
+            db.close()

@@ -100,6 +100,7 @@ class MultiVideoPlayer {
   final bool usesSprintProtocol;
   final List<Map<String, dynamic>> slotBreakdown;
   final String? analysisVersion;
+  final bool discoverVisible;
 
   MultiVideoPlayer({
     required this.id,
@@ -136,6 +137,7 @@ class MultiVideoPlayer {
     this.usesSprintProtocol = false,
     this.slotBreakdown = const [],
     this.analysisVersion,
+    this.discoverVisible = false,
   });
 
   bool get analysisFailed => analysisStatus == 'failed';
@@ -206,6 +208,7 @@ class MultiVideoPlayer {
       updatedAt: json['updated_at'] as String?,
       requiredVideoCount: json['required_video_count'] as int? ?? 3,
       usesSprintProtocol: json['uses_sprint_protocol'] == true,
+      discoverVisible: json['discover_visible'] == true,
     );
   }
 }
@@ -607,7 +610,32 @@ class MultiUploadService {
     return MultiVideoPlayer.fromJson(data);
   }
 
-  /// Tüm çoklu video oyuncularını listele
+  /// Giriş yapan oyuncunun tüm analiz oturumları (arşiv; Keşfet gizlileri dahil).
+  static Future<List<MultiVideoPlayer>> listMyAnalyses() async {
+    final token = currentAccessTokenNotifier.value;
+    if (token == null || token.isEmpty) {
+      throw Exception('Oturum gerekli');
+    }
+    final response = await http.get(
+      Uri.parse('$_baseUrl/players/multivideo/mine'),
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    ).timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception('Analizler listelenemedi: ${response.statusCode}');
+    }
+
+    final data = json.decode(response.body);
+    final players = (data['players'] as List? ?? [])
+        .map((p) => MultiVideoPlayer.fromJson(p))
+        .toList();
+    return players;
+  }
+
+  /// Keşfet vitrinindeki tamamlanmış analizler (herkese açık liste).
   static Future<List<MultiVideoPlayer>> listPlayers({
     int skip = 0,
     int limit = 100,
