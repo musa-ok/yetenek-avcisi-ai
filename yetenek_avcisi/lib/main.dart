@@ -27,10 +27,10 @@ import 'package:yetenek_avcisi/widgets/slot_breakdown_card.dart';
 import 'package:yetenek_avcisi/widgets/combined_ovr_strip.dart';
 import 'package:yetenek_avcisi/widgets/scoutiq_logo_mark.dart';
 import 'package:yetenek_avcisi/core/deep_link/deep_link_service.dart';
+import 'package:yetenek_avcisi/core/utils/fifa_six_stats.dart';
 import 'package:yetenek_avcisi/core/settings/app_settings.dart';
 import 'package:yetenek_avcisi/core/utils/share_helper.dart';
 import 'package:yetenek_avcisi/core/utils/fifa_share_image.dart';
-import 'package:yetenek_avcisi/core/utils/fifa_six_stats.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -2222,26 +2222,18 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
     try {
       final all = await MultiUploadService.listPlayers();
       final myId = widget.user.id;
-      final mine = all
-          .where((p) => p.userId == myId &&
-              p.overallRating > 0 &&
-              p.aiSummaryReport != null &&
-              p.aiSummaryReport!.isNotEmpty &&
-              p.aiSummaryReport != 'Rapor oluşturulamadı')
-          .toList()
-        ..sort((a, b) => b.id.compareTo(a.id));
-      if (mine.isEmpty) return;
-      final latest = mine.first;
-      final six = latest.fifaSix;
+      final mine = all.where((p) => p.userId == myId).toList();
+      final unified = buildUnifiedFifaFromPlayers(mine);
+      if (unified == null) return;
       latestAnalysisNotifier.value = AnalysisResult(
-        overall: latest.overallRating,
-        pace: six.pace,
-        finishing: six.finishing,
-        passing: six.passing,
-        dribbling: six.dribbling,
-        defending: six.defending,
-        physical: six.strength,
-        report: latest.aiSummaryReport ?? '',
+        overall: unified.overallRating,
+        pace: unified.six.pace,
+        finishing: unified.six.finishing,
+        passing: unified.six.passing,
+        dribbling: unified.six.dribbling,
+        defending: unified.six.defending,
+        physical: unified.six.strength,
+        report: unified.latestReport ?? '',
       );
     } catch (_) {
       // Sessiz geç — sadece "—" görünür
@@ -4844,21 +4836,191 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
   }
 
   Widget _buildStatsList() {
-    final completedPlayers = players.where((p) => p.isComplete).toList();
+    final unified = buildUnifiedFifaFromPlayers(players);
+    final completedPlayers = players
+        .where((p) =>
+            p.isComplete &&
+            (p.aiSummaryReport?.isNotEmpty ?? false) &&
+            p.aiSummaryReport != 'Rapor oluşturulamadı')
+        .toList()
+      ..sort((a, b) => b.id.compareTo(a.id));
     final incompletePlayers = players.where((p) => !p.isComplete).toList();
-    final allPlayers = [...completedPlayers, ...incompletePlayers];
-    
-    if (allPlayers.isEmpty) {
+
+    if (unified == null && incompletePlayers.isEmpty) {
       return ListView(
         padding: EdgeInsets.all(16),
         children: [_buildEmptyUploadPrompt()],
       );
     }
-    
-    return ListView.builder(
+
+    return ListView(
       padding: EdgeInsets.all(16),
-      itemCount: allPlayers.length,
-      itemBuilder: (context, index) => _buildPremiumPlayerCard(allPlayers[index]),
+      children: [
+        if (unified != null) ...[
+          _buildUnifiedFifaCard(unified),
+          if (completedPlayers.length > 1) ...[
+            const SizedBox(height: 20),
+            Text(
+              'Analiz oturumları',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ],
+        ...completedPlayers.map(_buildSessionChip),
+        ...incompletePlayers.map(_buildPremiumPlayerCard),
+      ],
+    );
+  }
+
+  Widget _buildUnifiedFifaCard(UnifiedFifaCard unified) {
+    final scoreColor = _getScoreColor(unified.overallRating);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: scoreColor.withValues(alpha: 0.35), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Birleşik FIFA Kartım',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 17,
+                        ),
+                      ),
+                      Text(
+                        unified.sessionCount > 1
+                            ? '${unified.sessionCount} analiz birleştirildi'
+                            : 'Tüm ölçülen testler',
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildCircularScore(unified.overallRating, scoreColor),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildSixMetricGridFromStats(unified.six, true),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSixMetricGridFromStats(FifaSixStats six, bool hasAnalysis) {
+    final metrics = [
+      {'label': 'Hız', 'value': six.pace, 'icon': Icons.speed},
+      {'label': 'Şut', 'value': six.finishing, 'icon': Icons.sports_soccer},
+      {'label': 'Pas', 'value': six.passing, 'icon': Icons.swap_horiz},
+      {'label': 'Dripling', 'value': six.dribbling, 'icon': Icons.control_camera},
+      {'label': 'Defans', 'value': six.defending, 'icon': Icons.shield_outlined},
+      {'label': 'Fizik', 'value': six.strength, 'icon': Icons.fitness_center},
+    ];
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 1.55,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: 6,
+      itemBuilder: (context, i) {
+        final m = metrics[i];
+        final int? val = hasAnalysis ? m['value'] as int? : null;
+        final bool hasVal = val != null && val > 0;
+        final Color c = hasVal ? _getScoreColor(val!) : Colors.grey.shade700;
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                c.withValues(alpha: hasVal ? 0.18 : 0.06),
+                c.withValues(alpha: hasVal ? 0.06 : 0.02),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: c.withValues(alpha: hasVal ? 0.35 : 0.15),
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(m['icon'] as IconData, color: c, size: 18),
+              const SizedBox(height: 4),
+              hasVal
+                  ? Text(
+                      '$val',
+                      style: TextStyle(
+                        color: c,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                      ),
+                    )
+                  : Text(
+                      '–',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+              Text(
+                m['label'] as String,
+                style: const TextStyle(color: Colors.white38, fontSize: 10),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSessionChip(MultiVideoPlayer player) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      title: Text(
+        '${player.position} · OVR ${player.overallRating}',
+        style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        '${player.slotBreakdown.length} test',
+        style: const TextStyle(color: Colors.white38, fontSize: 12),
+      ),
+      trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PlayerStatsScreen(
+            player: player,
+            onAnalysisComplete: _loadMyPlayers,
+          ),
+        ),
+      ).then((_) => _loadMyPlayers()),
     );
   }
 

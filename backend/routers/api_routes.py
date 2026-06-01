@@ -567,27 +567,47 @@ def create_multivideo_player_from_auth(position: str = Form(...), db: Session = 
     name = current_user.full_name or current_user.email.split('@')[0]
     age = current_user.age or 18
     
-    # 🚨 HER ZAMAN YENI PLAYER OLUŞTUR - Eski varsa dokunma, yeni kayıt aç
-    # Kullanıcı "İstatistiklerim" sayfasından eski analizlere bakabilir
+    # Tek birleşik FIFA kartı: aynı kullanıcı için mevcut kaydı yeniden kullan
+    player = (
+        db.query(models_multivideo.PlayerMultiVideo)
+        .filter(models_multivideo.PlayerMultiVideo.user_id == current_user.id)
+        .order_by(models_multivideo.PlayerMultiVideo.id.asc())
+        .first()
+    )
+    from position_skills_config import get_required_video_count
+
+    n = get_required_video_count(position)
+    if player:
+        player.position = position
+        player.position_code = position_code
+        player.name = name
+        player.age = age
+        db.commit()
+        db.refresh(player)
+        return {
+            "message": f"Mevcut kart güncellendi ({position}). Şimdi {n} video yükleyin.",
+            "player": player.to_dict(),
+            "reused": True,
+        }
+
     player = models_multivideo.PlayerMultiVideo(
-        user_id=current_user.id, 
-        name=name, 
-        age=age, 
-        position=position, 
-        position_code=position_code, 
-        overall_rating=0, 
-        skill_scores={}, 
-        ai_strengths=[], 
-        ai_improvements=[]
+        user_id=current_user.id,
+        name=name,
+        age=age,
+        position=position,
+        position_code=position_code,
+        overall_rating=0,
+        skill_scores={},
+        ai_strengths=[],
+        ai_improvements=[],
     )
     db.add(player)
     db.commit()
     db.refresh(player)
-    from position_skills_config import get_required_video_count
-    n = get_required_video_count(position)
     return {
         "message": f"{name} için kayıt oluşturuldu. Şimdi {n} video yükleyin.",
         "player": player.to_dict(),
+        "reused": False,
     }
 
 # ── UPLOAD SLOT: uyumluluk kontrolü + video kaydet ───────────────────────────

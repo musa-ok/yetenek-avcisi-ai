@@ -146,3 +146,65 @@ extension MultiVideoPlayerFifaSix on MultiVideoPlayer {
         slotBreakdown: slotBreakdown,
       );
 }
+
+/// Tüm tamamlanmış analizlerden tek FIFA kartı (ana sayfa + profil).
+class UnifiedFifaCard {
+  const UnifiedFifaCard({
+    required this.six,
+    required this.overallRating,
+    required this.mergedBreakdown,
+    this.latestReport,
+    this.sessionCount = 0,
+  });
+
+  final FifaSixStats six;
+  final int overallRating;
+  final List<Map<String, dynamic>> mergedBreakdown;
+  final String? latestReport;
+  final int sessionCount;
+}
+
+bool _hasCompletedAnalysis(MultiVideoPlayer p) {
+  final r = p.aiSummaryReport?.trim() ?? '';
+  return p.overallRating > 0 &&
+      r.isNotEmpty &&
+      r != 'Rapor oluşturulamadı';
+}
+
+UnifiedFifaCard? buildUnifiedFifaFromPlayers(List<MultiVideoPlayer> players) {
+  final completed =
+      players.where(_hasCompletedAnalysis).toList()
+        ..sort((a, b) => b.id.compareTo(a.id));
+  if (completed.isEmpty) return null;
+
+  final mergedBreakdown = <Map<String, dynamic>>[];
+  for (final p in completed) {
+    mergedBreakdown.addAll(p.slotBreakdown);
+  }
+
+  final six = resolveFifaSixStats(
+    overallRating: 50,
+    slotBreakdown: mergedBreakdown,
+  );
+
+  final measured = [
+    six.pace,
+    six.finishing,
+    six.passing,
+    six.dribbling,
+    six.defending,
+    six.strength,
+  ].whereType<int>().toList();
+
+  final ovr = measured.isEmpty
+      ? completed.first.overallRating
+      : (measured.reduce((a, b) => a + b) / measured.length).round().clamp(1, 99);
+
+  return UnifiedFifaCard(
+    six: six,
+    overallRating: ovr,
+    mergedBreakdown: mergedBreakdown,
+    latestReport: completed.first.aiSummaryReport,
+    sessionCount: completed.length,
+  );
+}

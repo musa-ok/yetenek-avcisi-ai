@@ -189,6 +189,67 @@ def aggregate_slot_results(slot_results: list[dict[str, Any]]) -> dict[str, Any]
     return skill_scores
 
 
+def merge_breakdown_lists(
+    existing: list[dict[str, Any]] | None,
+    new_rows: list[dict[str, Any]] | None,
+    *,
+    session_position: str | None = None,
+) -> list[dict[str, Any]]:
+    """Önceki analiz testleri + yeni oturum; aynı FIFA alanı birden fazla kez ölçüldüyse sonra ortalanır."""
+    merged: list[dict[str, Any]] = []
+    for row in existing or []:
+        if isinstance(row, dict):
+            merged.append(dict(row))
+    for row in new_rows or []:
+        if not isinstance(row, dict):
+            continue
+        copy = dict(row)
+        if session_position and not copy.get("session_position"):
+            copy["session_position"] = session_position
+        merged.append(copy)
+    return merged
+
+
+def skill_scores_from_breakdown(breakdown: list[dict[str, Any]]) -> dict[str, Any]:
+    """Birleşik slot_breakdown → attribute ortalamaları + tam test listesi."""
+    by_attr: dict[str, list[int]] = {k: [] for k in ATTR_KEYS}
+    clean: list[dict[str, Any]] = []
+
+    for row in breakdown:
+        if not isinstance(row, dict):
+            continue
+        score = row.get("score")
+        if score is None:
+            continue
+        s = max(1, min(100, int(score)))
+        label = str(row.get("label") or row.get("skill") or "")
+        attr = row.get("attribute") or attribute_for_label(label)
+        if attr not in by_attr:
+            by_attr[attr] = []
+        by_attr[attr].append(s)
+        clean.append(dict(row))
+
+    skill_scores: dict[str, Any] = {
+        "slot_breakdown": clean,
+        "analysis_version": "slot_v1",
+    }
+    for attr, scores in by_attr.items():
+        if scores:
+            skill_scores[attr] = round(sum(scores) / len(scores))
+    return skill_scores
+
+
+def compute_unified_ovr(skill_scores: dict[str, Any], position: str | None = None) -> int:
+    """Birleşik kart OVR — ölçülen FIFA altı ortalaması veya mevki ağırlığı."""
+    ss = ensure_fifa_six_in_skill_scores(dict(skill_scores), 50)
+    if position and position in POSITION_OVR_WEIGHTS:
+        return compute_ovr(position, ss)
+    vals = [ss.get(k) for k in _FIFA_ATTRS if ss.get(k) is not None]
+    if not vals:
+        return 50
+    return max(1, min(100, round(sum(vals) / len(vals))))
+
+
 _FIFA_ATTRS = ("pace", "finishing", "passing", "dribbling", "defending", "strength")
 
 

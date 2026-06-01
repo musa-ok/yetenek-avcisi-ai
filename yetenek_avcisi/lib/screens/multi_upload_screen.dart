@@ -792,17 +792,23 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
       // Ana sayfadaki "Benim İstatistiklerim" listesinin güncel skorları
       // göstermesi için global notifier'ı set et.
-      final six = finalizedPlayer.fifaSix;
-      latestAnalysisNotifier.value = AnalysisResult(
-        overall: finalizedPlayer.overallRating,
-        pace: six.pace,
-        finishing: six.finishing,
-        passing: six.passing,
-        dribbling: six.dribbling,
-        defending: six.defending,
-        physical: six.strength,
-        report: finalizedPlayer.aiSummaryReport ?? '',
+      final all = await MultiUploadService.listPlayers();
+      final userId = finalizedPlayer.userId;
+      final unified = buildUnifiedFifaFromPlayers(
+        all.where((p) => p.userId == userId).toList(),
       );
+      if (unified != null) {
+        latestAnalysisNotifier.value = AnalysisResult(
+          overall: unified.overallRating,
+          pace: unified.six.pace,
+          finishing: unified.six.finishing,
+          passing: unified.six.passing,
+          dribbling: unified.six.dribbling,
+          defending: unified.six.defending,
+          physical: unified.six.strength,
+          report: unified.latestReport ?? '',
+        );
+      }
 
       // 'Keşfet' ekranı ve Ana Sayfa oyuncu listesine yeni analizin
       // yansıması için global yenileme sinyali at.

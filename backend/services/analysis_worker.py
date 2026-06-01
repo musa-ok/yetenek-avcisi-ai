@@ -146,9 +146,19 @@ def run_multivideo_finalize(player_id: int) -> dict:
             db.commit()
             return {"ok": False, "error": player.analysis_error, "retryable": True}
 
-        skill_scores = slot_scoring.aggregate_slot_results(slot_results)
-        breakdown = skill_scores.get("slot_breakdown") or []
-        new_ovr = slot_scoring.compute_ovr(player.position or "", skill_scores)
+        session_scores = slot_scoring.aggregate_slot_results(slot_results)
+        new_breakdown = session_scores.get("slot_breakdown") or []
+        old_ss = player.skill_scores if isinstance(player.skill_scores, dict) else {}
+        old_breakdown = old_ss.get("slot_breakdown") or []
+        merged_breakdown = slot_scoring.merge_breakdown_lists(
+            old_breakdown,
+            new_breakdown,
+            session_position=player.position or "",
+        )
+        skill_scores = slot_scoring.skill_scores_from_breakdown(merged_breakdown)
+        new_ovr = slot_scoring.compute_unified_ovr(
+            skill_scores, player.position or ""
+        )
         skill_scores = slot_scoring.ensure_fifa_six_in_skill_scores(
             skill_scores, new_ovr
         )
@@ -161,9 +171,9 @@ def run_multivideo_finalize(player_id: int) -> dict:
             player.name or "",
             player.position or "",
             player.overall_rating,
-            breakdown,
+            merged_breakdown,
         )
-        strengths, improvements = slot_scoring.strengths_and_improvements(breakdown)
+        strengths, improvements = slot_scoring.strengths_and_improvements(merged_breakdown)
         player.ai_strengths = strengths
         player.ai_improvements = improvements
         player.analysis_status = "completed"
