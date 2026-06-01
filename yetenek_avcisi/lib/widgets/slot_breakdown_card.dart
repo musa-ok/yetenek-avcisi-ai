@@ -72,8 +72,6 @@ class _SlotBreakdownCardState extends State<SlotBreakdownCard> {
         ? row['score'] as int
         : int.tryParse('${row['score']}') ?? 0;
     final attr = '${row['attribute'] ?? ''}';
-    final timing = row['timing_sec'];
-    final timingEst = row['timing_estimated'] == true;
     final obs = '${row['observation'] ?? ''}'.trim();
     final expanded = _expanded.contains(index);
 
@@ -86,19 +84,7 @@ class _SlotBreakdownCardState extends State<SlotBreakdownCard> {
       scoreColor = const Color(0xFFEF5350);
     }
 
-    final timingSource = '${row['timing_source'] ?? ''}';
-    String? sub;
-    if (timing != null) {
-      if (timingSource == 'opencv') {
-        sub = 'Süre: $timing sn · video ölçümü';
-      } else if (timingEst) {
-        sub = 'Süre: $timing sn · AI tahmini';
-      } else {
-        sub = 'Süre: $timing sn';
-      }
-    } else if (attr.isNotEmpty) {
-      sub = _attrLabel(attr);
-    }
+    final String? sub = attr.isNotEmpty ? _attrLabel(attr) : null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),

@@ -56,6 +56,7 @@ FifaSixStats resolveFifaSixStats({
   int? physicalAttributes,
   Map<String, dynamic>? skillScores,
   List<Map<String, dynamic>>? slotBreakdown,
+  bool fillMissing = true,
 }) {
   final ss = skillScores ?? {};
   final breakdown = slotBreakdown ?? _breakdownFrom(ss);
@@ -124,7 +125,36 @@ FifaSixStats resolveFifaSixStats({
     defending: _clampStat(def),
     strength: _clampStat(phy),
   );
+  if (!fillMissing) return raw;
   return fillMissingFifaStatsWithAverage(raw, fallbackOvr: overallRating);
+}
+
+/// Yalnızca ölçülen slot/alanlar; eksikler doldurulmaz (ana sayfa birleştirme).
+FifaSixStats resolveFifaSixStatsMeasuredOnly({
+  required int overallRating,
+  int? pace,
+  int? finishing,
+  int? passing,
+  int? dribbling,
+  int? defending,
+  int? strength,
+  int? physicalAttributes,
+  Map<String, dynamic>? skillScores,
+  List<Map<String, dynamic>>? slotBreakdown,
+}) {
+  return resolveFifaSixStats(
+    overallRating: overallRating,
+    pace: pace,
+    finishing: finishing,
+    passing: passing,
+    dribbling: dribbling,
+    defending: defending,
+    strength: strength,
+    physicalAttributes: physicalAttributes,
+    skillScores: skillScores,
+    slotBreakdown: slotBreakdown,
+    fillMissing: false,
+  );
 }
 
 /// Ölçülmemiş FIFA altı değerleri, ölçülenlerin ortalamasıyla doldurulur (UI).
@@ -217,6 +247,129 @@ bool _hasCompletedAnalysis(MultiVideoPlayer p) {
   return p.overallRating > 0 &&
       r.isNotEmpty &&
       r != 'Rapor oluşturulamadı';
+}
+
+/// Ana sayfa: her özellik için en güncel (>0) ölçüm; OVR = ölçülenlerin ortalaması.
+class MergedLatestSixStats {
+  const MergedLatestSixStats({
+    this.pace,
+    this.finishing,
+    this.passing,
+    this.dribbling,
+    this.defending,
+    this.strength,
+    required this.overallRating,
+    this.latestReport,
+    required this.sessionCount,
+  });
+
+  final int? pace;
+  final int? finishing;
+  final int? passing;
+  final int? dribbling;
+  final int? defending;
+  final int? strength;
+  final int overallRating;
+  final String? latestReport;
+  final int sessionCount;
+
+  bool get hasMeasurableStats =>
+      [pace, finishing, passing, dribbling, defending, strength]
+          .any((v) => v != null && v > 0);
+
+  String displayStat(int? v) =>
+      (v == null || v <= 0) ? '—' : '$v';
+
+  String get displayOverall =>
+      overallRating > 0 ? '$overallRating' : '—';
+}
+
+int _sessionSortKey(MultiVideoPlayer p) {
+  for (final raw in [p.updatedAt, p.createdAt]) {
+    if (raw == null || raw.isEmpty) continue;
+    final t = DateTime.tryParse(raw);
+    if (t != null) return t.millisecondsSinceEpoch;
+  }
+  return p.id;
+}
+
+List<MultiVideoPlayer> sortAnalysesNewestFirst(List<MultiVideoPlayer> players) {
+  final copy = List<MultiVideoPlayer>.from(players);
+  copy.sort((a, b) {
+    final byTime = _sessionSortKey(b).compareTo(_sessionSortKey(a));
+    if (byTime != 0) return byTime;
+    return b.id.compareTo(a.id);
+  });
+  return copy;
+}
+
+FifaSixStats _measuredSixForSession(MultiVideoPlayer p) {
+  return resolveFifaSixStatsMeasuredOnly(
+    overallRating: p.overallRating,
+    pace: p.pace,
+    finishing: p.finishing,
+    passing: p.passing,
+    dribbling: p.dribbling,
+    defending: p.defending,
+    strength: p.strength,
+    physicalAttributes: p.physicalAttributes,
+    skillScores: p.skillScores,
+    slotBreakdown: p.slotBreakdown,
+  );
+}
+
+int? _pickLatestStat(
+  List<MultiVideoPlayer> newestFirst,
+  int? Function(FifaSixStats) read,
+) {
+  for (final p in newestFirst) {
+    final v = read(_measuredSixForSession(p));
+    if (v != null && v > 0) return v;
+  }
+  return null;
+}
+
+/// Tüm analiz oturumlarından özellik bazlı en güncel ölçümler.
+MergedLatestSixStats? buildMergedLatestSixStats(List<MultiVideoPlayer> players) {
+  if (players.isEmpty) return null;
+
+  final newestFirst = sortAnalysesNewestFirst(players);
+  final pace = _pickLatestStat(newestFirst, (s) => s.pace);
+  final finishing = _pickLatestStat(newestFirst, (s) => s.finishing);
+  final passing = _pickLatestStat(newestFirst, (s) => s.passing);
+  final dribbling = _pickLatestStat(newestFirst, (s) => s.dribbling);
+  final defending = _pickLatestStat(newestFirst, (s) => s.defending);
+  final strength = _pickLatestStat(newestFirst, (s) => s.strength);
+
+  final measured = [pace, finishing, passing, dribbling, defending, strength]
+      .whereType<int>()
+      .where((v) => v > 0)
+      .toList();
+
+  final ovr = measured.isEmpty
+      ? 0
+      : (measured.reduce((a, b) => a + b) / measured.length).round().clamp(1, 99);
+
+  String? latestReport;
+  for (final p in newestFirst) {
+    final r = p.aiSummaryReport?.trim() ?? '';
+    if (r.isNotEmpty && r != 'Rapor oluşturulamadı') {
+      latestReport = r;
+      break;
+    }
+  }
+
+  return MergedLatestSixStats(
+    pace: pace,
+    finishing: finishing,
+    passing: passing,
+    dribbling: dribbling,
+    defending: defending,
+    strength: strength,
+    overallRating: ovr,
+    latestReport: latestReport,
+    sessionCount: players.length,
+  );
 }
 
 UnifiedFifaCard? buildUnifiedFifaFromPlayers(List<MultiVideoPlayer> players) {

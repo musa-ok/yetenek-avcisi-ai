@@ -356,16 +356,5 @@ def build_scout_report(
         lbl = r.get("label") or r.get("skill") or "Test"
         sc = r.get("score")
         obs = (r.get("observation") or "").strip()
-        timing = r.get("timing_sec")
-        extra = ""
-        if timing is not None:
-            src = r.get("timing_source") or ""
-            if src == "opencv":
-                est = " (video ölçümü)"
-            elif r.get("timing_estimated"):
-                est = " (AI tahmini)"
-            else:
-                est = ""
-            extra = f" Süre: {timing}s{est}."
-        lines.append(f"• {lbl}: {sc}/100.{extra} {obs}")
+        lines.append(f"• {lbl}: {sc}/100. {obs}")
     return "\n".join(lines).strip()

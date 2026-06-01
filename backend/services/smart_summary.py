@@ -57,12 +57,7 @@ def _condensed_ai_lines(
         for row in breakdown:
             lbl = row.get("label") or row.get("skill") or "Test"
             sc = row.get("score")
-            timing = row.get("timing_sec")
-            tail = ""
-            if timing is not None:
-                est = " · AI tahmini" if row.get("timing_estimated") else ""
-                tail = f" · {timing}s{est}"
-            lines.append(f"• {lbl}: {sc}/100{tail}")
+            lines.append(f"• {lbl}: {sc}/100")
         return lines
 
     intro = _extract_short_summary(

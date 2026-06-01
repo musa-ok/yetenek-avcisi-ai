@@ -27,6 +27,7 @@ import 'package:yetenek_avcisi/widgets/smart_summary_card.dart';
 import 'package:yetenek_avcisi/widgets/slot_breakdown_card.dart';
 import 'package:yetenek_avcisi/widgets/combined_ovr_strip.dart';
 import 'package:yetenek_avcisi/widgets/scoutiq_logo_mark.dart';
+import 'package:yetenek_avcisi/widgets/home_merged_stats_section.dart';
 import 'package:yetenek_avcisi/core/deep_link/deep_link_service.dart';
 import 'package:yetenek_avcisi/core/utils/fifa_six_stats.dart';
 import 'package:yetenek_avcisi/core/settings/app_settings.dart';
@@ -61,8 +62,11 @@ enum AppLanguage { tr, en }
 final ValueNotifier<AppLanguage> appLanguageNotifier = ValueNotifier(
   AppLanguage.tr,
 );
-final ValueNotifier<AnalysisResult?> latestAnalysisNotifier =
-    ValueNotifier<AnalysisResult?>(null);
+final ValueNotifier<MergedLatestSixStats?> homeMergedStatsNotifier =
+    ValueNotifier<MergedLatestSixStats?>(null);
+
+/// Oyuncunun en az bir analiz oturumu var mı (FAB metni için).
+final ValueNotifier<int> myAnalysisSessionCountNotifier = ValueNotifier<int>(0);
 
 // Global oyuncu havuzu yenileme sinyali. Bir oyuncu için AI analizi
 // tamamlanınca arttırılır; ExploreScreen gibi listeleyici ekranlar
@@ -162,6 +166,8 @@ class L10n {
 
   String get statFinishing => en ? 'Finishing' : 'Bitiricilik';
 
+  String get statShooting => en ? 'Shooting' : 'Şut';
+
   String get statPassing => en ? 'Passing' : 'Pas';
 
   String get statDribbling => en ? 'Dribbling' : 'Dripling';
@@ -172,6 +178,15 @@ class L10n {
 
   String fabUploadVideos(int count) =>
       en ? 'Upload $count videos' : '$count Video Yükle';
+
+  String get fabStartAnalysis => en ? 'Start analysis' : 'Analize Başla';
+
+  String get fabImproveScore =>
+      en ? 'Boost your score (upload new video)' : 'Puanını Yükselt (Yeni Video Yükle)';
+
+  String get shareStats => en ? 'Share stats' : 'İstatistikleri paylaş';
+
+  String get shareFailed => en ? 'Share failed' : 'Paylaşım başarısız';
 
   String get myStatsEmptyHint => en
       ? 'Complete a video analysis to see your stats here.'
@@ -2053,13 +2068,12 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  int? _myRequiredVideoCount;
 
   @override
   void initState() {
     super.initState();
     currentUserNotifier.addListener(_onUserChanged);
-    _loadMyRequiredVideoCount();
+    _refreshPlayerSessionCount();
   }
 
   @override
@@ -2069,21 +2083,21 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onUserChanged() {
-    _loadMyRequiredVideoCount();
+    _refreshPlayerSessionCount();
   }
 
-  Future<void> _loadMyRequiredVideoCount() async {
+  Future<void> _refreshPlayerSessionCount() async {
     final user = currentUserNotifier.value;
     if (user?.role != 'Futbolcu') {
-      if (mounted) setState(() => _myRequiredVideoCount = null);
+      myAnalysisSessionCountNotifier.value = 0;
       return;
     }
     try {
       final mine = await MultiUploadService.listMyAnalyses();
-      final count = mine.isNotEmpty ? mine.first.requiredVideoCount : null;
-      if (mounted) setState(() => _myRequiredVideoCount = count);
+      myAnalysisSessionCountNotifier.value = mine.length;
+      homeMergedStatsNotifier.value = buildMergedLatestSixStats(mine);
     } catch (_) {
-      if (mounted) setState(() => _myRequiredVideoCount = null);
+      myAnalysisSessionCountNotifier.value = 0;
     }
   }
 
@@ -2119,29 +2133,37 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           floatingActionButton: user.role == 'Futbolcu'
-              ? FloatingActionButton.extended(
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MultiUploadScreen(key: UniqueKey(), forceNew: true),
+              ? ListenableBuilder(
+                  listenable: myAnalysisSessionCountNotifier,
+                  builder: (context, _) {
+                    final hasSessions = myAnalysisSessionCountNotifier.value > 0;
+                    return FloatingActionButton.extended(
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                MultiUploadScreen(key: UniqueKey(), forceNew: true),
+                          ),
+                        );
+                        _refreshPlayerSessionCount();
+                      },
+                      backgroundColor: AppColors.accentGreen,
+                      elevation: 0,
+                      icon: const Icon(
+                        Icons.video_library,
+                        color: Color(0xFF0B0F19),
+                      ),
+                      label: Text(
+                        hasSessions ? l.fabImproveScore : l.fabStartAnalysis,
+                        style: const TextStyle(
+                          color: Color(0xFF0B0F19),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
                       ),
                     );
-                    _loadMyRequiredVideoCount();
                   },
-                  backgroundColor: AppColors.accentGreen,
-                  elevation: 0,
-                  icon: const Icon(Icons.video_library, color: Color(0xFF0B0F19)),
-                  label: Text(
-                    _myRequiredVideoCount != null && _myRequiredVideoCount! > 0
-                        ? l.fabUploadVideos(_myRequiredVideoCount!)
-                        : l.fabUpload,
-                    style: const TextStyle(
-                      color: Color(0xFF0B0F19),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                  ),
                 )
               : null,
           floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -2244,32 +2266,15 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
     return list.take(12).toList();
   }
 
-  // Kullanıcının en son çoklu-video analizini çek ve global notifier'a yaz.
-  // Birleşik kart: ölçülmeyen alt statlar ölçülenlerin ortalamasıyla doldurulur.
+  /// Tüm analizlerden özellik bazlı en güncel ölçümler → ana sayfa notifier.
   Future<void> _loadLatestAnalysis() async {
     try {
       final mine = await MultiUploadService.listMyAnalyses();
-      final unified = buildUnifiedFifaFromPlayers(mine);
-      if (unified == null) return;
-      latestAnalysisNotifier.value = AnalysisResult(
-        overall: unified.overallRating,
-        pace: unified.six.pace,
-        finishing: unified.six.finishing,
-        passing: unified.six.passing,
-        dribbling: unified.six.dribbling,
-        defending: unified.six.defending,
-        physical: unified.six.strength,
-        report: unified.latestReport ?? '',
-      );
+      myAnalysisSessionCountNotifier.value = mine.length;
+      homeMergedStatsNotifier.value = buildMergedLatestSixStats(mine);
     } catch (_) {
-      // Sessiz geç — sadece "—" görünür
+      homeMergedStatsNotifier.value = null;
     }
-  }
-
-  String _statDisplay(int? v, {required int fallback}) {
-    if (v != null && v > 0) return '$v';
-    if (fallback > 0) return '$fallback';
-    return '—';
   }
 
   @override
@@ -2294,59 +2299,14 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
           widget.user.id,
         );
 
-        return ValueListenableBuilder<AnalysisResult?>(
-          valueListenable: latestAnalysisNotifier,
-          builder: (context, latest, _) {
-            final hasStats = latest != null && latest.overall > 0;
-            final ovr = latest?.overall ?? 0;
-            final measured = [
-              latest?.pace,
-              latest?.finishing,
-              latest?.passing,
-              latest?.dribbling,
-              latest?.defending,
-              latest?.physical,
-            ].whereType<int>().where((v) => v > 0).toList();
-            final avgFill = measured.isEmpty
-                ? ovr
-                : (measured.reduce((a, b) => a + b) / measured.length).round();
-            final stats = [
-              PlayerStat(
-                title: l.ratingOverall,
-                value: _statDisplay(latest?.overall, fallback: ovr),
-                icon: Icons.emoji_events_outlined,
-              ),
-              PlayerStat(
-                title: l.statPace,
-                value: _statDisplay(latest?.pace, fallback: avgFill),
-                icon: Icons.directions_run_rounded,
-              ),
-              PlayerStat(
-                title: l.statFinishing,
-                value: _statDisplay(latest?.finishing, fallback: avgFill),
-                icon: Icons.sports_soccer_rounded,
-              ),
-              PlayerStat(
-                title: l.statPassing,
-                value: _statDisplay(latest?.passing, fallback: avgFill),
-                icon: Icons.swap_horiz_rounded,
-              ),
-              PlayerStat(
-                title: l.statDribbling,
-                value: _statDisplay(latest?.dribbling, fallback: avgFill),
-                icon: Icons.control_camera_rounded,
-              ),
-              PlayerStat(
-                title: l.statDefending,
-                value: _statDisplay(latest?.defending, fallback: avgFill),
-                icon: Icons.shield_outlined,
-              ),
-              PlayerStat(
-                title: l.statPhysical,
-                value: _statDisplay(latest?.physical, fallback: avgFill),
-                icon: Icons.fitness_center_rounded,
-              ),
-            ];
+        return ValueListenableBuilder<MergedLatestSixStats?>(
+          valueListenable: homeMergedStatsNotifier,
+          builder: (context, merged, _) {
+            final isPlayer = role.toLowerCase() == 'futbolcu';
+            final mergedForUi = merged ??
+                (isPlayer
+                    ? const MergedLatestSixStats(sessionCount: 0, overallRating: 0)
+                    : null);
 
             return SafeArea(
               child: CustomScrollView(
@@ -2519,26 +2479,28 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                             ),
                       ),
                     ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: horizontal),
-                      child: _SectionTitle(
-                        title: role == 'Futbolcu'
-                            ? l.sectionMyStats
-                            : l.registeredPlayersSection,
-                      ),
-                    ),
-                  ),
-                  if (role == 'Futbolcu' && !hasStats)
+                  if (isPlayer && mergedForUi != null)
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 4),
-                        child: Text(
-                          l.myStatsEmptyHint,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.55),
-                            height: 1.4,
-                          ),
+                        padding: EdgeInsets.fromLTRB(
+                          horizontal,
+                          8,
+                          horizontal,
+                          12,
+                        ),
+                        child: HomeMergedStatsSection(
+                          merged: mergedForUi,
+                          l: l,
+                          playerName: widget.user.displayName,
+                        ),
+                      ),
+                    ),
+                  if (!isPlayer)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: horizontal),
+                        child: _SectionTitle(
+                          title: l.registeredPlayersSection,
                         ),
                       ),
                     ),
@@ -2547,16 +2509,10 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                       horizontal,
                       10,
                       horizontal,
-                      role == 'Futbolcu' ? 88 : 28,
+                      isPlayer ? 100 : 28,
                     ),
-                    sliver: role == 'Futbolcu'
-                        ? SliverList.separated(
-                            itemBuilder: (context, index) =>
-                                PlayerStatTile(stat: stats[index]),
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(height: 10),
-                            itemCount: stats.length,
-                          )
+                    sliver: isPlayer
+                        ? const SliverToBoxAdapter(child: SizedBox.shrink())
                         : players.isEmpty
                         ? SliverToBoxAdapter(
                             child: Padding(
