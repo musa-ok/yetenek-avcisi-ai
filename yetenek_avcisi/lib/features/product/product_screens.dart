@@ -350,6 +350,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.analytics;
       case 'scout_approved':
         return Icons.verified;
+      case 'scout_rejected':
+        return Icons.cancel_outlined;
       default:
         return Icons.notifications;
     }

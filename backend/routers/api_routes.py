@@ -1129,6 +1129,11 @@ def reject_scout(
 
     name = target.full_name or target.email
     user_email = target.email
+
+    from services.notifications import notify_scout_rejected
+
+    notify_scout_rejected(db, target.id, name)
+
     db.delete(target)
     db.commit()
 
@@ -1141,7 +1146,8 @@ def reject_scout(
 
     return {
         "message": f"{name} başvurusu reddedildi."
-        + (" Red bildirim e-postası gönderildi." if email_sent else " E-posta gönderilemedi."),
+        + (" Red bildirim e-postası gönderildi." if email_sent else " E-posta gönderilemedi.")
+        + " Push bildirimi gönderildi (cihazda kayıtlıysa).",
         "user_id": user_id,
         "email_sent": email_sent,
     }

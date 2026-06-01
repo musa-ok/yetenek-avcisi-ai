@@ -62,6 +62,18 @@ def notify_scout_approved(db: Session, scout_user_id: int):
     )
 
 
+def notify_scout_rejected(db: Session, scout_user_id: int, user_name: Optional[str] = None):
+    """Red öncesi çağrılmalı (hesap silinince kayıt cascade ile silinir; push yine gider)."""
+    name = (user_name or "Aday").strip()
+    create_notification(
+        db,
+        user_id=scout_user_id,
+        kind="scout_rejected",
+        title="Scout başvurun reddedildi",
+        body=f"Sayın {name}, başvurunuz bu aşamada onaylanamadı. Detaylar e-postanıza gönderildi.",
+    )
+
+
 def notify_new_rating_on_player(db: Session, player_user_id: int, player_id: int, scout_name: str):
     if player_user_id:
         create_notification(
