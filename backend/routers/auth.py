@@ -2,7 +2,7 @@
 YENİ AUTH SİSTEMİ - FastAPI + PostgreSQL
 Sade, temiz ve hatasız auth endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import models, schemas
@@ -36,7 +36,12 @@ def _user_payload(user: models.User) -> dict:
     }
 
 
-def _auth_response(db: Session, user: models.User) -> dict:
+def _auth_response(
+    db: Session, user: models.User, request: Request | None = None
+) -> dict:
+    from services.notification_helpers import record_login_and_notify_if_new_device
+
+    record_login_and_notify_if_new_device(db, user, request)
     ensure_user_referral_code(db, user)
     tokens = issue_token_response(db, user)
     return {**tokens, "user": _user_payload(user)}
@@ -173,7 +178,9 @@ def resend_otp(payload: dict, db: Session = Depends(get_db)):
 
 
 @router.post("/verify-otp")
-def verify_otp(payload: dict, db: Session = Depends(get_db)):
+def verify_otp(
+    payload: dict, request: Request, db: Session = Depends(get_db)
+):
     """
     OTP DOĞRULAMA:
     - Kod doğruysa is_verified=True yap
@@ -201,14 +208,18 @@ def verify_otp(payload: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     
-    resp = _auth_response(db, user)
+    resp = _auth_response(db, user, request)
     resp["message"] = "Doğrulama başarılı."
     resp["verified"] = True
     return resp
 
 
 @router.post("/login")
-def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
+def login(
+    credentials: schemas.LoginRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     """
     GİRİŞ:
     - E-posta ve şifre doğruysa giriş yap
@@ -223,8 +234,8 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
     
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Lütfen önce e-posta adresinizi doğrulayın.")
-    
-    return _auth_response(db, user)
+
+    return _auth_response(db, user, request)
 
 
 @router.post("/refresh")
@@ -259,7 +270,9 @@ def my_referral_link(
 
 
 @router.post("/social")
-def social_login(payload: dict, db: Session = Depends(get_db)):
+def social_login(
+    payload: dict, request: Request, db: Session = Depends(get_db)
+):
     """
     SOSYAL GİRİŞ - Google & Apple
     - Mevcut kullanıcı varsa giriş yap (e-posta veya Apple provider_id)
@@ -307,7 +320,7 @@ def social_login(payload: dict, db: Session = Depends(get_db)):
             user.provider = provider
         db.commit()
         db.refresh(user)
-        resp = _auth_response(db, user)
+        resp = _auth_response(db, user, request)
         resp["status"] = "complete"
         resp["user"]["full_name"] = sanitize_display_name(
             user.full_name or "", user.email
@@ -325,7 +338,9 @@ def social_login(payload: dict, db: Session = Depends(get_db)):
 
 
 @router.post("/social/register")
-def social_register(payload: dict, db: Session = Depends(get_db)):
+def social_register(
+    payload: dict, request: Request, db: Session = Depends(get_db)
+):
     """SOSYAL KAYIT - Profil tamamlama sonrası."""
     from services.social_auth_helpers import find_social_user, sanitize_display_name
 
@@ -406,7 +421,7 @@ def social_register(payload: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    resp = _auth_response(db, user)
+    resp = _auth_response(db, user, request)
     resp["status"] = "complete"
     return resp
 

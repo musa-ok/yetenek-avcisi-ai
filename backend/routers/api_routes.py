@@ -84,7 +84,11 @@ def read_root():
 
 
 @router.post("/token", response_model=schemas.Token)
-def token_login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def token_login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     db_user = db.query(models.User).filter(models.User.email == form_data.username.strip().lower()).first()
     try:
         password_ok = db_user and auth.verify_password(form_data.password, db_user.hashed_password)
@@ -100,7 +104,11 @@ def token_login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     # SECURITY: Check if user is verified
     if not db_user.is_verified:
         raise HTTPException(status_code=403, detail="Lutfen once e-posta adresinizi dogrulayin.")
-    
+
+    from services.notification_helpers import record_login_and_notify_if_new_device
+
+    record_login_and_notify_if_new_device(db, db_user, request)
+
     return {"access_token": create_user_token(db_user), "token_type": "bearer"}
 
 
@@ -182,6 +190,10 @@ def reset_password(payload: dict, db: Session = Depends(get_db)):
 
     db_user.hashed_password = auth.get_password_hash(new_password)
     db.commit()
+
+    from services.notifications import notify_security_password_changed
+
+    notify_security_password_changed(db, db_user.id)
 
     return {"message": "Şifreniz başarıyla güncellendi."}
 
@@ -379,15 +391,17 @@ def rate_multivideo_player(
         rating=rating,
     )
 
-    if player.user_id and created:
-        from services.notifications import notify_new_rating_on_player
-
-        notify_new_rating_on_player(
-            db,
-            player.user_id,
-            player_id,
-            current_user.full_name or current_user.email or "Scout",
+    if player.user_id:
+        scout_name = current_user.full_name or current_user.email or "Scout"
+        from services.notifications import (
+            notify_new_rating_on_player,
+            notify_rating_updated_on_player,
         )
+
+        if created:
+            notify_new_rating_on_player(db, player.user_id, player_id, scout_name)
+        else:
+            notify_rating_updated_on_player(db, player.user_id, player_id, scout_name)
 
     summary = rating_h.build_community_rating_summary_mv(
         db, player_id, current_user_id=reviewer_id
@@ -426,15 +440,21 @@ def rate_player(
         rating=rating,
     )
 
-    if player.user_id and created:
-        from services.notifications import notify_new_rating_on_player
-
-        notify_new_rating_on_player(
-            db,
-            player.user_id,
-            player_id,
-            current_user.full_name or current_user.email or "Scout",
+    if player.user_id:
+        scout_name = current_user.full_name or current_user.email or "Scout"
+        from services.notifications import (
+            notify_new_rating_on_player,
+            notify_rating_updated_on_player,
         )
+
+        if created:
+            notify_new_rating_on_player(
+                db, player.user_id, player_id, scout_name, player_source="legacy"
+            )
+        else:
+            notify_rating_updated_on_player(
+                db, player.user_id, player_id, scout_name, player_source="legacy"
+            )
 
     return {
         "mesaj": "Puan güncellendi." if not created else "Community rating kaydedildi.",
@@ -633,6 +653,8 @@ async def upload_video_to_slot(
     if not player:
         raise HTTPException(status_code=404, detail="Oyuncu bulunamadı.")
 
+    was_complete = player.is_complete
+
     if is_kosu_slot_for(player.position or "", slot):
         raise HTTPException(
             status_code=400,
@@ -680,6 +702,9 @@ async def upload_video_to_slot(
 
     db.commit()
     db.refresh(player)
+    from services.notification_helpers import maybe_notify_videos_ready
+
+    maybe_notify_videos_ready(db, player, was_complete=was_complete)
     return {
         "message": f"Slot {slot} yüklendi: {skill_name}",
         "completion": player.completion_percentage,
@@ -723,6 +748,8 @@ async def upload_kosu_slot_video(
     )
     if not player:
         raise HTTPException(status_code=404, detail="Oyuncu bulunamadı.")
+
+    was_complete = player.is_complete
 
     if not is_kosu_slot_for(player.position or "", slot):
         raise HTTPException(status_code=400, detail="Bu slot çift video (Hız) testi değil.")
@@ -793,6 +820,9 @@ async def upload_kosu_slot_video(
 
     db.commit()
     db.refresh(player)
+    from services.notification_helpers import maybe_notify_videos_ready
+
+    maybe_notify_videos_ready(db, player, was_complete=was_complete)
     step = "20m düz koşu" if phase_norm == "flat" else "10m yokuş koşu"
     return {
         "message": f"{step} yüklendi.",
@@ -1034,11 +1064,21 @@ def upload_scout_document(
     )
     db.commit()
 
-    # Send admin notification about new pending scout
     email_service.send_pending_notification_to_admin(
         user_name=current_user.full_name or current_user.email,
         user_email=current_user.email
     )
+
+    from services.notification_helpers import admin_user_ids
+    from services.notifications import (
+        notify_admin_pending_scout,
+        notify_scout_document_received,
+    )
+
+    notify_scout_document_received(db, current_user.id)
+    scout_name = current_user.full_name or current_user.email or "Scout"
+    for admin_id in admin_user_ids(db):
+        notify_admin_pending_scout(db, admin_id, scout_name, current_user.email)
 
     return {"message": "Belge yüklendi, inceleme bekliyor. Onaylandığında mail alacaksınız.", "document_url": doc_url}
 

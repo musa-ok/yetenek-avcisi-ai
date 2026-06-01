@@ -13,6 +13,7 @@ import models_multivideo
 import vision
 from database import SessionLocal
 from services import slot_scoring
+from services.notification_helpers import notify_shortlist_watchers_analysis
 from services.sprint_timing import apply_sprint_timing_to_slot
 from services.multivideo_slots import (
     apply_slot_analysis_result,
@@ -43,6 +44,56 @@ def _download_item_to_tmp(player_id: int, idx: int, url: str) -> str | None:
     return None
 
 
+def _notify_player_analysis_failed(
+    db: Session, player: models_multivideo.PlayerMultiVideo, error_message: str
+) -> None:
+    if not player.user_id:
+        return
+    from services.notifications import notify_analysis_failed
+
+    notify_analysis_failed(
+        db,
+        player.user_id,
+        player.id,
+        player.name or "Oyuncun",
+        error_message,
+    )
+
+
+def _notify_player_analysis_success(
+    db: Session,
+    player: models_multivideo.PlayerMultiVideo,
+    *,
+    old_ovr: int,
+) -> None:
+    if not player.user_id:
+        return
+    from services.notifications import (
+        notify_ovr_changed,
+        notify_player_owner_analysis_done,
+    )
+
+    new_ovr = int(player.overall_rating or 0)
+    notify_player_owner_analysis_done(
+        db, player.user_id, player.name or "Oyuncun", player.id
+    )
+    if old_ovr > 0 and new_ovr > 0 and old_ovr != new_ovr:
+        notify_ovr_changed(
+            db,
+            player.user_id,
+            player.id,
+            player.name or "Oyuncun",
+            old_ovr,
+            new_ovr,
+        )
+    notify_shortlist_watchers_analysis(
+        db,
+        player_id=player.id,
+        player_name=player.name or "Oyuncu",
+        player_user_id=player.user_id,
+    )
+
+
 def run_multivideo_finalize(player_id: int) -> dict:
     db = SessionLocal()
     temp_paths: list[str] = []
@@ -63,6 +114,7 @@ def run_multivideo_finalize(player_id: int) -> dict:
             player.analysis_status = "failed"
             player.analysis_error = "Tüm videolar yüklenmedi."
             db.commit()
+            _notify_player_analysis_failed(db, player, player.analysis_error)
             return {"ok": False, "error": player.analysis_error}
 
         items = ordered_analysis_items(player)
@@ -112,6 +164,7 @@ def run_multivideo_finalize(player_id: int) -> dict:
                 else:
                     player.overall_rating = 0
                 db.commit()
+                _notify_player_analysis_failed(db, player, err_msg)
                 return {
                     "ok": False,
                     "error": err_msg,
@@ -144,6 +197,7 @@ def run_multivideo_finalize(player_id: int) -> dict:
             player.analysis_status = "failed"
             player.analysis_error = "Videolar hazırlanamadı. Lütfen tekrar deneyin."
             db.commit()
+            _notify_player_analysis_failed(db, player, player.analysis_error)
             return {"ok": False, "error": player.analysis_error, "retryable": True}
 
         session_scores = slot_scoring.aggregate_slot_results(slot_results)
@@ -163,6 +217,7 @@ def run_multivideo_finalize(player_id: int) -> dict:
             skill_scores, new_ovr
         )
 
+        old_ovr = int(player.overall_rating or 0)
         if player.overall_rating and player.overall_rating > 35:
             player.previous_overall_rating = player.overall_rating
         player.overall_rating = max(1, min(100, new_ovr))
@@ -184,12 +239,7 @@ def run_multivideo_finalize(player_id: int) -> dict:
         flag_modified(player, "ai_improvements")
         db.commit()
 
-        if player.user_id:
-            from services.notifications import notify_player_owner_analysis_done
-
-            notify_player_owner_analysis_done(
-                db, player.user_id, player.name, player.id
-            )
+        _notify_player_analysis_success(db, player, old_ovr=old_ovr)
 
         return {"ok": True, "player": player.to_dict()}
     except Exception as exc:
@@ -204,6 +254,7 @@ def run_multivideo_finalize(player_id: int) -> dict:
                 player.analysis_status = "failed"
                 player.analysis_error = f"Analiz hatası: {exc}"
                 db.commit()
+                _notify_player_analysis_failed(db, player, player.analysis_error)
         except Exception:
             pass
         return {"ok": False, "error": str(exc), "retryable": True}

@@ -29,6 +29,9 @@ def reserve_daily_analysis_quota(
         user.last_analysis_date = now_utc
 
     if (user.daily_analyses_count or 0) >= 3:
+        from services.notifications import notify_quota_exhausted
+
+        notify_quota_exhausted(db, user.id)
         raise HTTPException(
             status_code=403,
             detail="Günlük 3 yetenek analizi limitinizi doldurdunuz. Lütfen yarın tekrar deneyin.",
@@ -36,3 +39,7 @@ def reserve_daily_analysis_quota(
 
     user.daily_analyses_count = (user.daily_analyses_count or 0) + 1
     db.commit()
+    if (user.daily_analyses_count or 0) >= 3:
+        from services.notifications import notify_quota_last_used
+
+        notify_quota_last_used(db, user.id)

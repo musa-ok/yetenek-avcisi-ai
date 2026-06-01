@@ -13,7 +13,8 @@ import schemas_product as sp
 from database import get_db
 from deps import get_current_user, get_optional_user, require_scout
 from services import player_helpers as ph
-from services.notifications import create_notification
+from services.notification_helpers import resolve_player_owner_user_id
+from services.notifications import notify_added_to_shortlist, notify_scout_note_on_player
 from services.player_discovery import discover_players_as_dicts
 from services.slot_scoring import ensure_fifa_six_in_skill_scores
 
@@ -92,9 +93,6 @@ def get_my_multivideo_profile(
         "position": player.position,
         **_profile_block(player, current_user),
     }
-
-
-    return current_user
 
 
 @router.patch("/me/multivideo-profile")
@@ -266,11 +264,17 @@ def create_player_note(
     db.add(note)
     db.commit()
     db.refresh(note)
-    return _note_to_dict(
-        note,
-        current_user.id,
-        current_user.full_name or current_user.email or "Scout",
-    )
+    scout_name = current_user.full_name or current_user.email or "Scout"
+    owner_id = resolve_player_owner_user_id(db, player_id, body.player_source)
+    if owner_id and owner_id != current_user.id:
+        notify_scout_note_on_player(
+            db,
+            owner_id,
+            player_id,
+            body.player_source,
+            scout_name,
+        )
+    return _note_to_dict(note, current_user.id, scout_name)
 
 
 @router.patch("/notes/{note_id}")
@@ -403,6 +407,18 @@ def add_shortlist_item(
             )
         )
         db.commit()
+        owner_id = resolve_player_owner_user_id(
+            db, body.player_id, body.player_source
+        )
+        if owner_id and owner_id != current_user.id:
+            notify_added_to_shortlist(
+                db,
+                owner_id,
+                body.player_id,
+                body.player_source,
+                current_user.full_name or current_user.email or "Scout",
+                sl.title or "Favorilerim",
+            )
     db.refresh(sl)
     return _shortlist_payload(sl, db, request)
 

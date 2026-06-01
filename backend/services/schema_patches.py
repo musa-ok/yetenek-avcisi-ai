@@ -8,6 +8,7 @@ from database import engine
 _USER_COLUMNS = {
     "referral_code": "VARCHAR(16)",
     "referred_by_user_id": "INTEGER",
+    "last_login_fingerprint": "VARCHAR(64)",
 }
 
 

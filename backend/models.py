@@ -44,6 +44,7 @@ class User(Base):
     daily_analyses_count = Column(Integer, default=0)
     last_analysis_date = Column(DateTime(timezone=True), nullable=True)
     fcm_device_token = Column(String, nullable=True)
+    last_login_fingerprint = Column(String(64), nullable=True)
     city = Column(String, nullable=True)
     referral_code = Column(String(16), unique=True, nullable=True, index=True)
     referred_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

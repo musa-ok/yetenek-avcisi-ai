@@ -345,13 +345,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   IconData _iconFor(String kind) {
     switch (kind) {
       case 'rating':
+      case 'rating_updated':
         return Icons.star;
       case 'analysis_done':
+      case 'shortlist_analysis':
         return Icons.analytics;
+      case 'analysis_failed':
+        return Icons.error_outline;
+      case 'ovr_changed':
+        return Icons.trending_up;
+      case 'videos_ready':
+        return Icons.video_library_outlined;
+      case 'quota_exhausted':
+      case 'quota_warning':
+        return Icons.timer_outlined;
+      case 'scout_note':
+        return Icons.note_alt_outlined;
       case 'scout_approved':
+      case 'scout_document_received':
         return Icons.verified;
       case 'scout_rejected':
         return Icons.cancel_outlined;
+      case 'shortlist_added':
+        return Icons.bookmark_add_outlined;
+      case 'security_password_changed':
+      case 'security_new_login':
+        return Icons.security;
+      case 'admin_pending_scout':
+        return Icons.admin_panel_settings_outlined;
       default:
         return Icons.notifications;
     }
