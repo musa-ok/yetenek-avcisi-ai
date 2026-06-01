@@ -7,6 +7,7 @@ import '../../../../app_services.dart';
 import 'package:yetenek_avcisi/app_theme.dart' show AppSnackBars;
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/pages/login_page.dart';
+import '../../../product/product_screens.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -395,9 +396,12 @@ class _SettingsMenu extends StatelessWidget {
           _MenuItem(
             icon: Icons.notifications,
             title: 'Bildirimler',
-            subtitle: 'Bildirim tercihleri',
+            subtitle: 'Scout notu, analiz ve puan bildirimleri',
             onTap: () {
-              // TODO: Navigate to notifications
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+              );
             },
           ),
           

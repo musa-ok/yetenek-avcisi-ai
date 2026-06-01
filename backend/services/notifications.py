@@ -7,6 +7,24 @@ from sqlalchemy.orm import Session
 import models
 import models_product
 
+# MVP push: telefona yalnızca bu kind'lar; diğerleri uygulama içi listede kalır.
+PUSH_NOTIFICATION_KINDS = frozenset(
+    {
+        "analysis_done",
+        "analysis_failed",
+        "rating",
+        "rating_updated",
+        "scout_note",
+        "scout_approved",
+        "scout_rejected",
+        "admin_pending_scout",
+    }
+)
+
+
+def should_send_push(kind: str) -> bool:
+    return kind in PUSH_NOTIFICATION_KINDS
+
 
 def create_notification(
     db: Session,
@@ -29,7 +47,7 @@ def create_notification(
     db.refresh(row)
 
     user = db.query(models.User).filter(models.User.id == user_id).first()
-    if user and user.fcm_device_token:
+    if user and user.fcm_device_token and should_send_push(kind):
         from services.fcm_push import send_push
 
         send_push(

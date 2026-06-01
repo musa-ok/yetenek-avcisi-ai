@@ -2,9 +2,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:yetenek_avcisi/app_services.dart';
 import 'package:yetenek_avcisi/core/settings/app_settings.dart';
+import 'package:yetenek_avcisi/features/product/product_screens.dart';
 import 'package:yetenek_avcisi/firebase_options.dart';
+import 'package:yetenek_avcisi/core/navigation/app_navigator.dart';
 
 /// Arka plan / kapali uygulama mesajlari (minimal handler).
 @pragma('vm:entry-point')
@@ -25,41 +28,81 @@ class PushNotificationService {
 
     try {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-      PlatformDispatcher.instance.onError = (error, stack) {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-        return true;
-      };
+      if (kReleaseMode) {
+        FlutterError.onError =
+            FirebaseCrashlytics.instance.recordFlutterFatalError;
+        PlatformDispatcher.instance.onError = (error, stack) {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+          return true;
+        };
+      }
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-      final messaging = FirebaseMessaging.instance;
-      if (await AppSettings.areNotificationsEnabled()) {
-        await messaging.requestPermission(alert: true, badge: true, sound: true);
-      }
+      await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
 
       FirebaseMessaging.onMessage.listen((message) async {
         if (!await AppSettings.areNotificationsEnabled()) return;
         debugPrint('[FCM] foreground: ${message.notification?.title}');
       });
 
+      FirebaseMessaging.onMessageOpenedApp.listen(_openNotificationsFromMessage);
+
       FirebaseMessaging.instance.onTokenRefresh.listen((_) {
         syncTokenWithBackend();
       });
 
       _initialized = true;
-      await syncTokenWithBackend();
     } catch (e, st) {
       debugPrint('[FCM] init atlandi (Firebase yapilandirmasi gerekli): $e\n$st');
     }
   }
 
-  static Future<void> syncTokenWithBackend() async {
+  /// Oturum acildiktan / ayar degisince: aciksa token kaydet, kapaliysa sunucudan sil.
+  static Future<void> applyNotificationPreference() async {
+    await syncTokenWithBackend();
+  }
+
+  /// Splash sonrası — cold start'ta bildirime tıklanmışsa listeyi açar.
+  static Future<void> handlePendingLaunchNotification() async {
     if (!_initialized) return;
-    if (!await AppSettings.areNotificationsEnabled()) return;
-    if (currentAccessTokenNotifier.value == null ||
-        currentAccessTokenNotifier.value!.isEmpty) {
+    try {
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial == null) return;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      _openNotificationsFromMessage(initial);
+    } catch (e) {
+      debugPrint('[FCM] cold start bildirim atlandi: $e');
+    }
+  }
+
+  static void _openNotificationsFromMessage(RemoteMessage message) {
+    final nav = appNavigatorKey.currentState;
+    if (nav == null || !nav.mounted) return;
+    nav.push(
+      MaterialPageRoute<void>(builder: (_) => const NotificationsScreen()),
+    );
+  }
+
+  static Future<void> syncTokenWithBackend() async {
+    final hasSession = currentAccessTokenNotifier.value != null &&
+        currentAccessTokenNotifier.value!.isNotEmpty;
+    if (!hasSession) return;
+
+    final enabled = await AppSettings.areNotificationsEnabled();
+    if (!enabled) {
+      await _clearDeviceAndBackendToken();
       return;
     }
+
+    if (!_initialized) {
+      await initialize();
+    }
+    if (!_initialized) return;
+
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) return;
@@ -70,37 +113,48 @@ class PushNotificationService {
     }
   }
 
-  /// Ayarlar ekranından bildirim aç/kapa (tercih her zaman kaydedilir; FCM hata verse de UI kırılmaz).
-  static Future<void> setNotificationsEnabled(bool enabled) async {
-    await AppSettings.setNotificationsEnabled(enabled);
-    if (!_initialized) return;
-
+  static Future<void> _clearDeviceAndBackendToken() async {
+    if (_initialized) {
+      try {
+        await FirebaseMessaging.instance.deleteToken();
+      } catch (e) {
+        debugPrint('[FCM] deleteToken atlandi: $e');
+      }
+    }
     try {
-      if (enabled) {
-        await FirebaseMessaging.instance.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-        await syncTokenWithBackend();
-      } else {
-        try {
-          await FirebaseMessaging.instance.deleteToken();
-        } catch (e) {
-          debugPrint('[FCM] deleteToken atlandi: $e');
-        }
-        try {
-          if (currentAccessTokenNotifier.value != null &&
-              currentAccessTokenNotifier.value!.isNotEmpty) {
-            await BackendApi.clearFcmToken();
-          }
-        } catch (e) {
-          debugPrint('[FCM] backend token temizleme atlandi: $e');
-        }
-        debugPrint('[FCM] bildirimler kapatildi');
+      if (currentAccessTokenNotifier.value != null &&
+          currentAccessTokenNotifier.value!.isNotEmpty) {
+        await BackendApi.clearFcmToken();
+        debugPrint('[FCM] sunucu token kaldirildi');
       }
     } catch (e) {
-      debugPrint('[FCM] FCM islemi atlandi (tercih kayitli): $e');
+      debugPrint('[FCM] backend token temizleme: $e');
+      rethrow;
     }
+  }
+
+  /// Ayarlar: telefon push ac/kapa (uygulama icindeki Bildirimler listesi ayri kalir).
+  static Future<void> setNotificationsEnabled(bool enabled) async {
+    await AppSettings.setNotificationsEnabled(enabled);
+
+    if (!enabled) {
+      await _clearDeviceAndBackendToken();
+      return;
+    }
+
+    if (!_initialized) {
+      await initialize();
+    }
+    if (!_initialized) {
+      throw StateError('Firebase yapilandirmasi yok; push acilamadi.');
+    }
+
+    final messaging = FirebaseMessaging.instance;
+    await messaging.requestPermission(alert: true, badge: true, sound: true);
+    await syncTokenWithBackend();
+  }
+
+  static Future<bool> isPushEnabledOnDevice() async {
+    return AppSettings.areNotificationsEnabled();
   }
 }

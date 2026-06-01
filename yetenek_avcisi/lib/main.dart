@@ -48,9 +48,8 @@ import 'package:yetenek_avcisi/core/utils/social_auth_helper.dart';
 import 'package:yetenek_avcisi/features/product/player_compare_screen.dart';
 import 'package:yetenek_avcisi/features/product/player_profile_edit_sheet.dart';
 import 'package:yetenek_avcisi/features/product/product_screens.dart';
+import 'package:yetenek_avcisi/core/navigation/app_navigator.dart';
 import 'package:yetenek_avcisi/services/push_notification_service.dart';
-
-final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 const Color kScaffoldDark = Color(0xFF0B0F19);
 const Color kElevatedCard = Color(0xFF151C2B);
@@ -260,8 +259,8 @@ class L10n {
   String get notifications => en ? 'Notifications' : 'Bildirimler';
 
   String get notificationsSub => en
-      ? 'Alerts for analysis results and reports'
-      : 'Analiz sonuçları ve yeni rapor bildirimleri';
+      ? 'Phone push for analysis, scout ratings and notes. In-app inbox: Profile → Notifications.'
+      : 'Telefon bildirimi: analiz, scout puanı, not. Uygulama içi liste: Profil → Bildirimler.';
 
   String get mobileDataUpload =>
       en ? 'Mobile data uploads' : 'Mobil Veri ile Yükleme';
@@ -271,12 +270,12 @@ class L10n {
       : 'Wi-Fi dışında video yüklemeye izin ver';
 
   String get notificationsEnabledSnack => en
-      ? 'Notifications on — we\'ll alert you when analysis and reports are ready.'
-      : 'Bildirimler açıldı. Analiz ve raporlar hazır olunca haber veririz.';
+      ? 'Phone notifications on. Push will be sent for analysis and scout activity.'
+      : 'Telefon bildirimleri açıldı. Analiz ve scout işlemlerinde push gidecek.';
 
   String get notificationsDisabledSnack => en
-      ? 'Notifications off — you won\'t get alerts on this device.'
-      : 'Bildirimler kapatıldı. Bu cihazda uyarı almayacaksın.';
+      ? 'Phone notifications off. No push on this device; in-app list still available.'
+      : 'Telefon bildirimleri kapalı. Push gitmez; Profil → Bildirimler listesi durur.';
 
   String get mobileUploadEnabledSnack => en
       ? 'You can upload videos on mobile data.'
@@ -427,12 +426,16 @@ class L10nScope extends InheritedWidget {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _loadSavedLanguage();
-  await PushNotificationService.initialize();
+  try {
+    await PushNotificationService.initialize();
+  } catch (e, st) {
+    debugPrint('[FCM] main init hatasi: $e\n$st');
+  }
   await SessionStore.restoreIntoNotifier();
-  await PushNotificationService.syncTokenWithBackend();
+  await PushNotificationService.applyNotificationPreference();
   await DeepLinkService.init();
   currentAccessTokenNotifier.addListener(() {
-    PushNotificationService.syncTokenWithBackend();
+    PushNotificationService.applyNotificationPreference();
   });
   runApp(const ScoutiqApp());
 }
@@ -550,9 +553,9 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    Future.delayed(const Duration(milliseconds: 2600), () {
+    Future.delayed(const Duration(milliseconds: 2600), () async {
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
+      await Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           pageBuilder: (_, __, ___) => const SessionRouter(),
           transitionsBuilder: (_, anim, __, child) =>
@@ -560,6 +563,7 @@ class _SplashScreenState extends State<SplashScreen>
           transitionDuration: const Duration(milliseconds: 500),
         ),
       );
+      await PushNotificationService.handlePendingLaunchNotification();
     });
   }
 
@@ -2068,7 +2072,7 @@ class _MainScreenState extends State<MainScreen> {
       listenable: currentUserNotifier,
       builder: (context, _) {
         final user = currentUserNotifier.value;
-        if (user == null) return const SizedBox.shrink();
+        if (user == null) return const SessionRouter();
 
         return Scaffold(
           appBar: AppBar(
@@ -2338,11 +2342,11 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                               height: 1.4,
                             ),
                           ),
-                          if (role.toLowerCase() == 'scout') ...[
-                            const SizedBox(height: 14),
-                            Wrap(
-                              spacing: 10,
-                              children: [
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 10,
+                            children: [
+                              if (role.toLowerCase() == 'scout')
                                 ActionChip(
                                   avatar: const Icon(Icons.favorite_border, size: 18, color: kPitchGreen),
                                   label: Text(l.favorites),
@@ -2360,17 +2364,16 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                                     ),
                                   ),
                                 ),
-                                ActionChip(
-                                  avatar: const Icon(Icons.notifications_outlined, size: 18, color: kPitchGreen),
-                                  label: const Text('Bildirimler'),
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-                                  ),
+                              ActionChip(
+                                avatar: const Icon(Icons.notifications_outlined, size: 18, color: kPitchGreen),
+                                label: Text(l.notifications),
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -3366,7 +3369,7 @@ class ClubProfileScreen extends StatelessWidget {
       listenable: currentUserNotifier,
       builder: (context, _) {
         final user = currentUserNotifier.value;
-        if (user == null) return const SizedBox.shrink();
+        if (user == null) return const SessionRouter();
 
         return SafeArea(
           child: ListView(
@@ -3544,6 +3547,15 @@ class ClubProfileScreen extends StatelessWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: 10),
+              _ProfileOptionTile(
+                icon: Icons.notifications_outlined,
+                title: l.notifications,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                ),
+              ),
               const SizedBox(height: 10),
               _ProfileOptionTile(
                 icon: Icons.settings_rounded,
@@ -3789,20 +3801,24 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
 
   Future<void> _onNotificationsChanged(bool value) async {
     final l = L10n(appLanguageNotifier.value);
-    setState(() {
-      _notificationsEnabled = value;
-      _saving = true;
-    });
+    if (_saving) return;
+    setState(() => _saving = true);
     try {
       await PushNotificationService.setNotificationsEnabled(value);
+      final actual = await AppSettings.areNotificationsEnabled();
       if (!mounted) return;
+      setState(() => _notificationsEnabled = actual);
       _showSettingsSnack(
-        value ? l.notificationsEnabledSnack : l.notificationsDisabledSnack,
+        actual ? l.notificationsEnabledSnack : l.notificationsDisabledSnack,
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _notificationsEnabled = !value);
-      _showSettingsSnack(l.settingsLoadFailed, isError: true);
+      final actual = await AppSettings.areNotificationsEnabled();
+      setState(() => _notificationsEnabled = actual);
+      _showSettingsSnack(
+        '${l.settingsLoadFailed} ${e is StateError ? e.message : ''}'.trim(),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
