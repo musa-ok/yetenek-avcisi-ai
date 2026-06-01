@@ -63,7 +63,7 @@ class _PlayerDetailPageState extends State<PlayerDetailPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error ?? 'Veri yuklenemedi'),
+              Text(_error ?? 'Veri yüklenemedi'),
               const SizedBox(height: 16),
               FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
             ],

@@ -187,7 +187,7 @@ class L10n {
   String posChip(String raw) {
     switch (raw) {
       case 'Tum':
-        return en ? 'All' : 'Tum';
+        return en ? 'All' : 'Tüm';
       case 'Forvet':
         return en ? 'FW' : 'Forvet';
       case 'Orta Saha':
@@ -298,7 +298,7 @@ class L10n {
 
   String get uiLanguage => en ? 'Language' : 'Uygulama Dili';
 
-  String get uiLanguageSub => en ? 'Display language' : 'Arayuz dil tercihi';
+  String get uiLanguageSub => en ? 'Display language' : 'Arayüz dil tercihi';
 
   String get cameraSimulatorSnack => en
       ? 'Simulator has no camera. Please use the gallery.'
@@ -350,13 +350,13 @@ class L10n {
     }
     switch (key) {
       case 'Forvet':
-        return 'Sut, bitiricilik ve dar alanda dripling yeteneklerini gosteren anlari cekin.';
+        return 'Şut, bitiricilik ve dar alanda dripling yeteneklerini gösteren anları çekin.';
       case 'Orta Saha':
-        return 'Oyun gorusu, uzun pas isabeti ve top kontrolu aksiyonlarina odaklanin.';
+        return 'Oyun görüşü, uzun pas isabeti ve top kontrolü aksiyonlarına odaklanın.';
       case 'Defans':
-        return 'Bire bir savunma, top calma zamanlamasi ve hava topu mucadelelerini kaydedin.';
+        return 'Bire bir savunma, top çalma zamanlaması ve hava topu mücadelelerini kaydedin.';
       case 'Kaleci':
-        return 'Refleks kurtarislari, yan top hakimiyeti ve ayakla oyun kurma anlarini cekin.';
+        return 'Refleks kurtarışları, yan top hakimiyeti ve ayakla oyun kurma anlarını çekin.';
       default:
         return '';
     }
@@ -6492,13 +6492,13 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           _fifaCardKey.currentContext?.findRenderObject()
               as RenderRepaintBoundary?;
       if (boundary == null) {
-        throw Exception('Kart goruntusu hazir degil.');
+        throw Exception('Kart görüntüsü hazır değil.');
       }
       final pixelRatio = MediaQuery.of(context).devicePixelRatio * 2;
       final image = await boundary.toImage(pixelRatio: pixelRatio);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
-        throw Exception('Kart goruntusu olusturulamadi.');
+        throw Exception('Kart görüntüsü oluşturulamadı.');
       }
       final rawBytes = byteData.buffer.asUint8List();
       final watermarked = await FifaShareImage.addWatermark(rawBytes);
@@ -6553,7 +6553,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Paylasim basarisiz: $e')));
+      ).showSnackBar(SnackBar(content: Text('Paylaşım başarısız: $e')));
     } finally {
       if (mounted) {
         setState(() => _isSharingCard = false);
@@ -7516,7 +7516,7 @@ class _StepByStepAnalysisScreenState extends State<StepByStepAnalysisScreen> {
                 ),
                 SizedBox(height: 16),
                 Text(
-                  'Analiz Basarisiz',
+                  'Analiz Başarısız',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -7571,7 +7571,7 @@ class PositionSpecificResultScreen extends StatelessWidget {
         backgroundColor: kScaffoldDark,
         elevation: 0,
         title: Text(
-          'Analiz Sonuclari',
+          'Analiz Sonuçları',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,

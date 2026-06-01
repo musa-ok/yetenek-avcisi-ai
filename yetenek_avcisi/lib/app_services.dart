@@ -1061,7 +1061,7 @@ class BackendApi {
     }
     final decoded = json.decode(res.body);
     if (decoded is! Map<String, dynamic>) {
-      throw ApiException('Oyuncu detayi formati beklenmiyordu.', res.statusCode);
+      throw ApiException('Oyuncu detayı formatı beklenmiyordu.', res.statusCode);
     }
     final ratingMap = _extractRatingMap(decoded);
     final rating = PlayerRatingSummary.fromJson(ratingMap);
@@ -1092,7 +1092,7 @@ class BackendApi {
       final ratingMap = _extractRatingMap(decoded);
       return PlayerRatingSummary.fromJson(ratingMap);
     }
-    throw ApiException('Puanlama cevabi gecersiz formatta.', res.statusCode);
+    throw ApiException('Puanlama cevabı geçersiz formatta.', res.statusCode);
   }
 
   static ApiException _friendlyError(http.Response res) {
@@ -1390,7 +1390,7 @@ class BackendApi {
     if (res.statusCode != 200) throw _friendlyError(res);
     final decoded = json.decode(res.body);
     if (decoded is! List) {
-      throw ApiException('Oyuncu listesi formati beklenmiyordu.', res.statusCode);
+      throw ApiException('Oyuncu listesi formatı beklenmiyordu.', res.statusCode);
     }
     return decoded
         .whereType<Map<String, dynamic>>()
@@ -1403,7 +1403,7 @@ class BackendApi {
     if (res.statusCode != 200) throw _friendlyError(res);
     final decoded = json.decode(res.body);
     if (decoded is! Map<String, dynamic>) {
-      throw ApiException('Karsilastirma cevabi gecersiz.', res.statusCode);
+      throw ApiException('Karşılaştırma cevabı geçersiz.', res.statusCode);
     }
     return decoded;
   }

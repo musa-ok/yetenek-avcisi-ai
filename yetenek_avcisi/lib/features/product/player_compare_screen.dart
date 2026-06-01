@@ -111,7 +111,7 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0B0F19),
       appBar: AppBar(
-        title: const Text('Karsilastir'),
+        title: const Text('Karşılaştır'),
         backgroundColor: const Color(0xFF0B0F19),
       ),
       body: ListView(
@@ -127,7 +127,7 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
               Expanded(
                 child: InkWell(
                   onTap: _pickB,
-                  child: _playerChip(_b?.name ?? 'Oyuncu sec', Colors.orangeAccent),
+                  child: _playerChip(_b?.name ?? 'Oyuncu seç', Colors.orangeAccent),
                 ),
               ),
             ],

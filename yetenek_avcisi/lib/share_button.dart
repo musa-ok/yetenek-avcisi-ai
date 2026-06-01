@@ -75,7 +75,7 @@ class _ShareButtonState extends State<ShareButton> {
       child: ElevatedButton.icon(
         onPressed: _handleShare,
         icon: const Icon(Icons.share),
-        label: const Text('Sonuclari Paylas'),
+        label: const Text('Sonuçları Paylaş'),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF00FF87),
           foregroundColor: const Color(0xFF0B0F19),

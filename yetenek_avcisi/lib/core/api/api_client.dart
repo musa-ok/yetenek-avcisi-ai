@@ -24,7 +24,7 @@ class ApiClient {
       h['Authorization'] = 'Bearer $token';
     } else if (authRequired) {
       throw ApiException(
-        'Oturum suresi dolmus. Lutfen yeniden giris yapin.',
+        'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.',
         401,
       );
     }
