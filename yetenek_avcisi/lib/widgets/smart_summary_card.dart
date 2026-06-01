@@ -42,16 +42,6 @@ class _SmartSummaryCardState extends State<SmartSummaryCard> {
     }
   }
 
-  String? _aiReportBody() {
-    final sections = _data?.sections ?? [];
-    for (final s in sections) {
-      if (s.title == 'AI Analiz' && s.body.trim().isNotEmpty && s.body != '—') {
-        return stripAnalysisDisclaimer(s.body.trim());
-      }
-    }
-    return null;
-  }
-
   List<({String title, String body})> _visibleSections() {
     return (_data?.sections ?? []).where((s) {
       final body = stripAnalysisDisclaimer(s.body.trim());
@@ -161,18 +151,6 @@ class _SmartSummaryCardState extends State<SmartSummaryCard> {
                   fontSize: 14,
                 ),
               ),
-              if (_aiReportBody() != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Tam AI raporu için genişlet',
-                    style: TextStyle(
-                      color: AppColors.textMuted.withValues(alpha: 0.85),
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
             ],
             if (_expanded) ..._buildExpandedSections(),
           ],

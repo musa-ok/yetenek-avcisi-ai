@@ -280,10 +280,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
               
               SizedBox(height: 24),
               if (p.slotBreakdown.isNotEmpty)
-                SlotBreakdownCard(
-                  breakdown: p.slotBreakdown,
-                  analysisVersion: p.analysisVersion,
-                ),
+                SlotBreakdownCard(breakdown: p.slotBreakdown),
               if (p.slotBreakdown.isNotEmpty) SizedBox(height: 16),
               SmartSummaryCard(playerId: p.id),
               

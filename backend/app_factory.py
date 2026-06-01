@@ -73,10 +73,12 @@ def create_app() -> FastAPI:
     # v1 + geriye uyumlu kök prefix
     app.include_router(auth_v2_router, prefix="/auth")
     app.include_router(auth_v2_router, prefix="/api/v1/auth")
-    app.include_router(api_router)
-    app.include_router(api_router, prefix="/api/v1")
+    # product_router önce: /players/compare ve /players/discover,
+    # api_router'daki /players/{player_id} ile çakışmasın.
     app.include_router(product_router)
     app.include_router(product_router, prefix="/api/v1")
+    app.include_router(api_router)
+    app.include_router(api_router, prefix="/api/v1")
 
     return app
 

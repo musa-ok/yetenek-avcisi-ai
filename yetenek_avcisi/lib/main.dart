@@ -6790,10 +6790,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
             if (p.source == 'multivideo') ...[
               if (p.slotBreakdown.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                SlotBreakdownCard(
-                  breakdown: p.slotBreakdown,
-                  analysisVersion: p.analysisVersion,
-                ),
+                SlotBreakdownCard(breakdown: p.slotBreakdown),
               ],
               const SizedBox(height: 16),
               SmartSummaryCard(playerId: p.id),
