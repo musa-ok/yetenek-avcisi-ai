@@ -71,6 +71,11 @@ class DeepLinkService {
     await prefs.setString('pending_referral_code', code);
   }
 
+  static Future<String?> peekPendingInvite() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('pending_referral_code');
+  }
+
   static Future<String?> consumePendingInvite() async {
     final prefs = await SharedPreferences.getInstance();
     final code = prefs.getString('pending_referral_code');

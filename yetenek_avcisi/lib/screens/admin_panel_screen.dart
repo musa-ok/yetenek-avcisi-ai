@@ -65,6 +65,68 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
   }
 
+  Future<void> _rejectScout(int userId, String userName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1D2E),
+        title: const Text('Başvuruyu reddet', style: TextStyle(color: Colors.white)),
+        content: Text(
+          '$userName adlı scout başvurusu reddedilecek ve kayıt silinecek. Emin misiniz?',
+          style: TextStyle(color: Colors.white.withOpacity(0.75)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reddet', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _successMessage = null;
+      _errorMessage = null;
+    });
+
+    try {
+      final token = currentAccessTokenNotifier.value;
+      if (token == null || token.isEmpty) {
+        throw Exception('Oturum bulunamadı');
+      }
+
+      final response = await http.put(
+        Uri.parse('$kApiBaseUrl/admin/reject-scout/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _successMessage =
+              data['message'] as String? ??
+              '$userName reddedildi. ${data['email_sent'] == true ? 'Mail gönderildi.' : ''}';
+        });
+        await _loadPendingScouts();
+      } else {
+        final body = json.decode(response.body);
+        throw Exception(body['detail'] ?? 'Red işlemi başarısız');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Red hatası: $e';
+      });
+    }
+  }
+
   /// Approve a pending scout
   Future<void> _approveScout(int userId, String userName) async {
     setState(() {
@@ -319,11 +381,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     final createdAt = scout['created_at'] as String?;
     final referrerName = scout['referrer_name'] as String?;
     final referrerEmail = scout['referrer_email'] as String?;
+    final referrerCode = scout['referrer_code'] as String?;
     final inviteLabel = (referrerName != null && referrerName.trim().isNotEmpty)
         ? referrerName.trim()
         : (referrerEmail != null && referrerEmail.trim().isNotEmpty)
             ? referrerEmail.trim()
             : null;
+    final inviteText = inviteLabel != null
+        ? (referrerCode != null && referrerCode.trim().isNotEmpty
+            ? 'Davet: $inviteLabel · kod: ${referrerCode.trim().toUpperCase()}'
+            : 'Davet: $inviteLabel')
+        : 'Davet: Doğrudan kayıt (kod girilmedi)';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -436,9 +504,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    inviteLabel != null
-                        ? 'Davet: $inviteLabel'
-                        : 'Davet: Doğrudan kayıt',
+                    inviteText,
                     style: TextStyle(
                       color: inviteLabel != null
                           ? const Color(0xFF00E676)
@@ -476,30 +542,38 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 ),
               ),
 
-            // Action Buttons
+            OutlinedButton.icon(
+              onPressed: documentUrl != null
+                  ? () => _openDocument(documentUrl)
+                  : null,
+              icon: const Icon(Icons.description, size: 18),
+              label: const Text('Belgeyi Gör'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white.withOpacity(0.8),
+                minimumSize: const Size(double.infinity, 44),
+                side: BorderSide(
+                  color: documentUrl != null
+                      ? Colors.white.withOpacity(0.3)
+                      : Colors.white.withOpacity(0.1),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
-                // View Document Button
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: documentUrl != null
-                        ? () => _openDocument(documentUrl)
-                        : null,
-                    icon: const Icon(Icons.description, size: 18),
-                    label: const Text('Belgeyi Gör'),
+                    onPressed: () => _rejectScout(userId, fullName),
+                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                    label: const Text('Reddet'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white.withOpacity(0.8),
-                      side: BorderSide(
-                        color: documentUrl != null
-                            ? Colors.white.withOpacity(0.3)
-                            : Colors.white.withOpacity(0.1),
-                      ),
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Approve Button
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () => _approveScout(userId, fullName),

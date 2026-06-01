@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
+import '../core/utils/profile_formatters.dart';
 import '../services/multi_upload_service.dart';
 
 /// AI raporu + topluluk puanı + scout notlarından birleşik özet.
@@ -45,7 +46,7 @@ class _SmartSummaryCardState extends State<SmartSummaryCard> {
     final sections = _data?.sections ?? [];
     for (final s in sections) {
       if (s.title == 'AI Analiz' && s.body.trim().isNotEmpty && s.body != '—') {
-        return s.body.trim();
+        return stripAnalysisDisclaimer(s.body.trim());
       }
     }
     return null;
@@ -53,7 +54,11 @@ class _SmartSummaryCardState extends State<SmartSummaryCard> {
 
   List<({String title, String body})> _visibleSections() {
     return (_data?.sections ?? []).where((s) {
-      return s.body.trim().isNotEmpty && s.body != '—';
+      final body = stripAnalysisDisclaimer(s.body.trim());
+      return body.isNotEmpty && body != '—';
+    }).map((s) {
+      final body = stripAnalysisDisclaimer(s.body.trim());
+      return (title: s.title, body: body);
     }).toList();
   }
 

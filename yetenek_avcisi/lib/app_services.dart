@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yetenek_avcisi/core/api/api_client.dart';
 import 'package:yetenek_avcisi/core/config/api_config.dart';
+import 'package:yetenek_avcisi/core/utils/profile_formatters.dart';
 import 'package:yetenek_avcisi/core/utils/social_auth_helper.dart';
 
 export 'package:yetenek_avcisi/core/config/api_config.dart' show kApiBaseUrl;
@@ -38,6 +39,7 @@ class AuthenticatedUser {
     this.birthDate,
     this.age,
     this.isVerified = false,
+    this.scoutDocumentUrl,
   });
 
   final int id;
@@ -49,6 +51,10 @@ class AuthenticatedUser {
   final String? birthDate;
   final int? age;
   final bool isVerified;
+  final String? scoutDocumentUrl;
+
+  bool get hasScoutDocumentSubmitted =>
+      scoutDocumentUrl != null && scoutDocumentUrl!.trim().isNotEmpty;
 
   /// Ekranda gösterilecek güvenli isim (Apple ID / relay karışıklığını önler).
   String get displayName =>
@@ -68,6 +74,8 @@ class AuthenticatedUser {
     if (age != null)
       'age': age,
     'is_verified': isVerified,
+    if (scoutDocumentUrl != null && scoutDocumentUrl!.isNotEmpty)
+      'scout_document_url': scoutDocumentUrl,
   };
 
   factory AuthenticatedUser.fromJson(Map<String, dynamic> m) {
@@ -85,6 +93,11 @@ class AuthenticatedUser {
     final ageRaw = m['age'];
     final age = ageRaw is int ? ageRaw : (int.tryParse('$ageRaw') ?? 18);
     final isVerified = m['is_verified'] == true || m['isVerified'] == true;
+    final scoutDoc = _readOptionalString(
+      m,
+      'scout_document_url',
+      'scoutDocumentUrl',
+    );
     return AuthenticatedUser(
       id: id,
       fullName: SocialAuthHelper.sanitizeDisplayName(fullName: name, email: email),
@@ -95,6 +108,7 @@ class AuthenticatedUser {
       birthDate: birth,
       age: age,
       isVerified: isVerified,
+      scoutDocumentUrl: scoutDoc,
     );
   }
 }
@@ -277,6 +291,10 @@ class PlayerListItem {
       return null;
     }
 
+    final reportRaw =
+        _readOptionalString(m, 'ai_scout_report', 'aiScoutReport', 'scout_raporu');
+    final reportClean = stripAnalysisDisclaimer(reportRaw);
+
     return PlayerListItem(
       id: id,
       userId: _readOptionalInt(m, 'user_id', 'userId'),
@@ -293,7 +311,7 @@ class PlayerListItem {
         'profile_photo',
       ),
       phoneNumber: _readOptionalString(m, 'phone_number', 'phoneNumber', 'mobile'),
-      aiScoutReport: _readOptionalString(m, 'ai_scout_report', 'aiScoutReport', 'scout_raporu'),
+      aiScoutReport: reportClean.isEmpty ? null : reportClean,
       videoUrl: _readOptionalString(m, 'video_url', 'videoUrl', 'video'),
       source: '${m['source'] ?? 'legacy'}',
       city: _readOptionalString(m, 'city'),
@@ -762,6 +780,12 @@ class SessionStore {
     return prefs.getString(_refreshKey)?.trim();
   }
 
+  static Future<void> updateUser(AuthenticatedUser user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_authKey, json.encode(user.toJson()));
+    currentUserNotifier.value = user;
+  }
+
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_authKey);
@@ -1149,6 +1173,19 @@ class BackendApi {
     throw _friendlyError(res);
   }
 
+  /// Oturumdaki kullanıcıyı sunucudan yeniler (scout belgesi vb.).
+  static Future<AuthenticatedUser> fetchCurrentUser() async {
+    final res = await ApiClient.get('/me', authRequired: true)
+        .timeout(const Duration(seconds: 15));
+    if (res.statusCode == 200) {
+      final decoded = json.decode(res.body);
+      if (decoded is Map<String, dynamic>) {
+        return AuthenticatedUser.fromJson(decoded);
+      }
+    }
+    throw _friendlyError(res);
+  }
+
   /// POST /auth/forgot-password — Şifre sıfırlama kodu gönderir
   static Future<void> forgotPassword({required String email}) async {
     final res = await http
@@ -1249,6 +1286,7 @@ class BackendApi {
     required String provider,
     String? providerId,
     String? birthDate,
+    String? referralCode,
   }) async {
     final body = json.encode({
       'email': email.trim(),
@@ -1258,6 +1296,8 @@ class BackendApi {
       'provider': provider,
       'provider_id': providerId,
       if (birthDate != null) 'birth_date': birthDate,
+      if (referralCode != null && referralCode.trim().isNotEmpty)
+        'referral_code': referralCode.trim().toUpperCase(),
     });
 
     final res = await http
@@ -1540,6 +1580,7 @@ extension AuthenticatedUserCopyExt on AuthenticatedUser {
     String? roleOverride,
     String? phoneOverride,
     bool? isVerifiedOverride,
+    String? scoutDocumentUrlOverride,
   }) {
     final String? resolvedPhone = switch (phoneOverride) {
       null =>
@@ -1565,6 +1606,7 @@ extension AuthenticatedUserCopyExt on AuthenticatedUser {
       birthDate: birthDate,
       age: age,
       isVerified: isVerifiedOverride ?? isVerified,
+      scoutDocumentUrl: scoutDocumentUrlOverride ?? scoutDocumentUrl,
     );
   }
 }

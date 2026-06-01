@@ -1,4 +1,24 @@
 /// Profil alanları: API (ASCII) ↔ kullanıcı arayüzü (Türkçe).
+
+const _analysisDisclaimer =
+    'Not: Koşu süreleri mümkünse video hareket analizi (OpenCV) ile ölçülür; '
+    'ölçülemezse AI tahmini kullanılır. Teknik form puanı AI değerlendirmesidir.';
+
+/// AI scout raporu / özet metninden teknik notu kaldırır.
+String stripAnalysisDisclaimer(String? text) {
+  if (text == null || text.trim().isEmpty) return '';
+  var s = text.trim();
+  final idx = s.indexOf(_analysisDisclaimer);
+  if (idx >= 0) {
+    s = s.substring(0, idx).trimRight();
+  }
+  final lines = s.split('\n');
+  while (lines.isNotEmpty &&
+      lines.last.trim().startsWith('Not: Koşu süreleri')) {
+    lines.removeLast();
+  }
+  return lines.join('\n').trim();
+}
 String footFromApi(String? api) {
   switch (api) {
     case 'Sol':

@@ -39,6 +39,85 @@ class AppColors {
   static const Color warning = Color(0xFFFFA726);
   static const Color error = Color(0xFFFF5252);
   static const Color info = Color(0xFF00D4FF);
+
+  /// Parlak yeşil / turuncu SnackBar ve buton zemininde okunaklı metin.
+  static const Color onAccentGreen = scaffoldBackground;
+}
+
+/// SnackBar metin kontrastı — parlak yeşilde koyu metin, koyu zeminde beyaz.
+class AppSnackBars {
+  static const Color _successBg = AppColors.accentGreen;
+  static const Color _successFg = AppColors.onAccentGreen;
+
+  static TextStyle _textStyle(Color color, {FontWeight weight = FontWeight.w600}) =>
+      GoogleFonts.inter(color: color, fontWeight: weight, fontSize: 14);
+
+  static bool isLightBackground(Color bg) =>
+      bg == AppColors.success ||
+      bg == AppColors.accentGreen ||
+      bg == AppColors.warning ||
+      bg.value == const Color(0xFF00FF87).value;
+
+  static Color foregroundFor(Color background) =>
+      isLightBackground(background) ? _successFg : AppColors.textPrimary;
+
+  static SnackBar success(
+    String message, {
+    Duration duration = const Duration(seconds: 3),
+    SnackBarAction? action,
+  }) {
+    return SnackBar(
+      content: Text(message, style: _textStyle(_successFg)),
+      backgroundColor: _successBg,
+      behavior: SnackBarBehavior.floating,
+      duration: duration,
+      action: action,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+  }
+
+  static SnackBar successWithIcon(String message) {
+    return SnackBar(
+      content: Row(
+        children: [
+          Icon(Icons.check_circle, color: _successFg, size: 22),
+          const SizedBox(width: 12),
+          Expanded(child: Text(message, style: _textStyle(_successFg))),
+        ],
+      ),
+      backgroundColor: _successBg,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+  }
+
+  static SnackBar custom(
+    String message, {
+    required Color backgroundColor,
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    final fg = foregroundFor(backgroundColor);
+    return SnackBar(
+      content: Text(message, style: _textStyle(fg)),
+      backgroundColor: backgroundColor,
+      behavior: SnackBarBehavior.floating,
+      duration: duration,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+  }
+
+  static SnackBar error(String message) => SnackBar(
+        content: Text(message, style: _textStyle(AppColors.textPrimary)),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      );
+
+  static SnackBar neutral(String message) => SnackBar(
+        content: Text(message, style: _textStyle(AppColors.textPrimary)),
+        backgroundColor: AppColors.surface,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      );
 }
 
 class AppTheme {
@@ -144,10 +223,28 @@ class AppTheme {
       ),
       
       // Butonlar
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.accentGreen,
+          foregroundColor: AppColors.onAccentGreen,
+        ),
+      ),
+
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.surface,
+        contentTextStyle: GoogleFonts.inter(
+          color: AppColors.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.accentGreen,
-          foregroundColor: AppColors.scaffoldBackground,
+          foregroundColor: AppColors.onAccentGreen,
           elevation: 0,
           padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(

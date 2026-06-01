@@ -2,8 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:yetenek_avcisi/core/deep_link/deep_link_service.dart';
 import 'package:yetenek_avcisi/core/utils/social_auth_helper.dart';
 import '../app_services.dart';
+import '../app_theme.dart';
 import '../main.dart';
 
 // Premium Dark Theme renkleri - Ana uygulama ile uyumlu
@@ -35,6 +37,7 @@ class CompleteProfileScreen extends StatefulWidget {
 
 class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _referralCodeController = TextEditingController();
   late final TextEditingController _nameController;
   late final bool _needsName;
   String _selectedRole = 'Futbolcu';
@@ -51,11 +54,20 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       fallback: '',
     );
     _nameController = TextEditingController(text: _needsName ? '' : initialName);
+    _loadPendingReferralCode();
+  }
+
+  Future<void> _loadPendingReferralCode() async {
+    final code = await DeepLinkService.peekPendingInvite();
+    if (code != null && code.trim().isNotEmpty && mounted) {
+      _referralCodeController.text = code.trim().toUpperCase();
+    }
   }
 
   @override
   void dispose() {
     _phoneController.dispose();
+    _referralCodeController.dispose();
     _nameController.dispose();
     super.dispose();
   }
@@ -118,8 +130,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
     if (resolvedName.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen geçerli bir ad soyad girin (en az 2 karakter).'),
+        AppSnackBars.custom(
+          'Lütfen geçerli bir ad soyad girin (en az 2 karakter).',
           backgroundColor: Colors.orangeAccent,
         ),
       );
@@ -131,8 +143,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
     if (phone.isNotEmpty && (!phoneRegex.hasMatch(phone) || phone.length < 10)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Geçerli bir telefon numarası giriniz veya boş bırakınız.'),
+        AppSnackBars.custom(
+          'Geçerli bir telefon numarası giriniz veya boş bırakınız.',
           backgroundColor: Colors.orangeAccent,
         ),
       );
@@ -141,8 +153,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
     if (_birthDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen doğum tarihinizi seçin.'),
+        AppSnackBars.custom(
+          'Lütfen doğum tarihinizi seçin.',
           backgroundColor: Colors.orangeAccent,
         ),
       );
@@ -153,6 +165,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
     try {
       final roleToSend = _selectedRole == 'Scout' ? 'pending_scout' : _selectedRole;
+      final manualReferral = _referralCodeController.text.trim();
+      final pendingReferral = await DeepLinkService.consumePendingInvite();
+      final referralCode = manualReferral.isNotEmpty
+          ? manualReferral
+          : pendingReferral;
 
       final session = await BackendApi.socialRegister(
         email: widget.email,
@@ -162,6 +179,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         provider: widget.provider,
         providerId: widget.providerId,
         birthDate: _birthDate?.toIso8601String(),
+        referralCode: _selectedRole == 'Scout' ? referralCode : null,
       );
 
       if (!mounted) return;
@@ -266,6 +284,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               ],
               const SizedBox(height: 20),
               _buildRoleSelector(),
+              if (_selectedRole == 'Scout') ...[
+                const SizedBox(height: 20),
+                _buildReferralCodeField(),
+              ],
               const SizedBox(height: 20),
               _buildBirthDateField(),
               const SizedBox(height: 20),
@@ -372,6 +394,48 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           ),
         },
       ),
+    );
+  }
+
+  Widget _buildReferralCodeField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: kElevatedCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: TextField(
+            controller: _referralCodeController,
+            textCapitalization: TextCapitalization.characters,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            decoration: InputDecoration(
+              hintText: 'Davet kodu (isteğe bağlı)',
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
+              prefixIcon: Icon(
+                Icons.card_giftcard_outlined,
+                color: Colors.white.withOpacity(0.6),
+              ),
+              border: InputBorder.none,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            'Sizi davet eden scout\'un kodunu girin.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.45),
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

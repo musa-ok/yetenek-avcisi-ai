@@ -1,5 +1,8 @@
 import os
+import sys
 from logging.config import fileConfig
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 from sqlalchemy import engine_from_config
@@ -7,8 +10,17 @@ from sqlalchemy import pool
 
 from alembic import context
 
+# backend/ içindeki `from database import Base` için PYTHONPATH
+_project_root = Path(__file__).resolve().parents[1]
+_backend_dir = _project_root / "backend"
+for _p in (_project_root, _backend_dir):
+    _s = str(_p)
+    if _s not in sys.path:
+        sys.path.insert(0, _s)
+
 # Load environment variables
 load_dotenv()
+load_dotenv(_backend_dir / ".env")
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -26,7 +38,11 @@ if database_url:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from backend.models import Base
+from models import Base  # noqa: E402
+
+import models_multivideo  # noqa: E402, F401
+import models_product  # noqa: E402, F401
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

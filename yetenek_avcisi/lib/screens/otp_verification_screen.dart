@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../app_services.dart';
+import '../app_theme.dart';
 import '../main.dart';
 
 // Premium Dark Theme renkleri - Ana uygulama ile uyumlu
@@ -94,10 +95,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       debugPrint('[OTP] Yeni kod gönderildi: ${widget.email}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Yeni doğrulama kodu gönderildi'),
-            backgroundColor: kPitchGreen,
-          ),
+          AppSnackBars.success('Yeni doğrulama kodu gönderildi'),
         );
       }
     } on ApiException catch (e) {
@@ -110,9 +108,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             (route) => false,
           );
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Hesabınız zaten doğrulanmış. Giriş yapabilirsiniz.'),
-              backgroundColor: kPitchGreen,
+            AppSnackBars.success(
+              'Hesabınız zaten doğrulanmış. Giriş yapabilirsiniz.',
             ),
           );
         } else {
@@ -161,10 +158,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Doğrulama başarılı! Yönlendiriliyorsunuz...'),
-          backgroundColor: kPitchGreen,
-        ),
+        AppSnackBars.success('Doğrulama başarılı! Yönlendiriliyorsunuz...'),
       );
 
       await Future.delayed(const Duration(milliseconds: 800));
@@ -184,9 +178,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             (route) => false,
           );
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Hesabınız zaten doğrulanmış. Giriş yapabilirsiniz.'),
-              backgroundColor: kPitchGreen,
+            AppSnackBars.success(
+              'Hesabınız zaten doğrulanmış. Giriş yapabilirsiniz.',
             ),
           );
         } else {

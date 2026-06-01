@@ -167,6 +167,70 @@ def send_approval_email(user_email: str, user_name: str) -> bool:
         return False
 
 
+def send_rejection_email(user_email: str, user_name: str) -> bool:
+    """Scout başvurusu reddedildiğinde kullanıcıya bilgilendirme e-postası."""
+    try:
+        subject = "Scout Başvurunuz Hakkında - Yetenek Avcısı"
+        safe_name = user_name.strip() if user_name else "Aday"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #1a1d2e 0%, #2d3748 100%);
+                          padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .header h1 {{ color: white; margin: 0; font-size: 24px; }}
+                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .highlight {{ background: #fff; padding: 20px; border-left: 4px solid #e57373;
+                             margin: 20px 0; border-radius: 5px; }}
+                .footer {{ text-align: center; margin-top: 30px; font-size: 12px; color: #666; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Yetenek Avcısı</h1>
+                </div>
+                <div class="content">
+                    <h2>Sayın {safe_name},</h2>
+
+                    <p>Scout hesabı başvurunuz incelendi; maalesef bu aşamada onaylanamadı.</p>
+
+                    <div class="highlight">
+                        <strong>Başvuru durumu:</strong> Reddedildi<br>
+                        <strong>Not:</strong> Yüklediğiniz belge veya profil bilgileri
+                        değerlendirme kriterlerimizi karşılamadı.
+                    </div>
+
+                    <p>Yeniden başvurmak isterseniz güncel TFF lisansı, kulüp kartı veya
+                    PFSA sertifikası ile kayıt oluşturabilirsiniz.</p>
+
+                    <p>Sorularınız için bu e-postaya yanıt verebilir veya
+                    <strong>{SENDER_EMAIL}</strong> adresinden bize ulaşabilirsiniz.</p>
+
+                    <p>Saygılarımızla,<br>
+                    <strong>Yetenek Avcısı Ekibi</strong></p>
+                </div>
+                <div class="footer">
+                    <p>Bu e-posta otomatik olarak gönderilmiştir.</p>
+                    <p>© 2024 Yetenek Avcısı. Tüm hakları saklıdır.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return _send_via_brevo(user_email, subject, html_body)
+
+    except Exception as e:
+        logger.error(f"❌ Failed to send rejection email to {user_email}: {str(e)}")
+        return False
+
+
 def send_pending_notification_to_admin(user_name: str, user_email: str) -> bool:
     """
     Notify admin when a new scout uploads documents and needs approval

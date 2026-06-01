@@ -31,6 +31,7 @@ def _user_payload(user: models.User) -> dict:
         "phone_number": user.phone_number,
         "birth_date": user.birth_date.isoformat() if user.birth_date else None,
         "profile_image_url": user.profile_image_url,
+        "scout_document_url": user.scout_document_url,
         "referral_code": user.referral_code,
     }
 
@@ -110,7 +111,10 @@ def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
         except:
             pass
     
-    referrer_id = resolve_referrer_id(db, getattr(user_data, "referral_code", None))
+    ref_raw = getattr(user_data, "referral_code", None)
+    referrer_id = resolve_referrer_id(db, ref_raw)
+    if ref_raw and str(ref_raw).strip() and referrer_id is None:
+        raise HTTPException(status_code=400, detail="Geçersiz davet kodu.")
 
     new_user = models.User(
         full_name=user_data.full_name.strip(),
@@ -328,10 +332,18 @@ def social_register(payload: dict, db: Session = Depends(get_db)):
     email = payload.get("email", "").strip().lower()
     full_name = payload.get("full_name", "").strip()
     phone_number = payload.get("phone_number", "").strip()
-    role = payload.get("role", "Futbolcu").strip()
+    role_raw = (payload.get("role") or "Futbolcu").strip()
+    if role_raw.lower() in ("scout", "pending_scout"):
+        role = "pending_scout"
+    else:
+        role = "Futbolcu"
     provider = payload.get("provider", "").strip().lower()
     provider_id = payload.get("provider_id", "")
     birth_date_raw = payload.get("birth_date")
+    ref_raw = payload.get("referral_code")
+    referrer_id = resolve_referrer_id(db, ref_raw)
+    if ref_raw and str(ref_raw).strip() and referrer_id is None:
+        raise HTTPException(status_code=400, detail="Geçersiz davet kodu.")
 
     if not email:
         raise HTTPException(status_code=400, detail="E-posta gereklidir.")
@@ -372,6 +384,8 @@ def social_register(payload: dict, db: Session = Depends(get_db)):
         user.is_profile_complete = True
         if birth_date:
             user.birth_date = birth_date
+        if referrer_id and not user.referred_by_user_id:
+            user.referred_by_user_id = referrer_id
     else:
         user = models.User(
             full_name=display_name,
@@ -385,6 +399,7 @@ def social_register(payload: dict, db: Session = Depends(get_db)):
             is_profile_complete=True,
             is_active=True,
             birth_date=birth_date,
+            referred_by_user_id=referrer_id,
         )
         db.add(user)
 

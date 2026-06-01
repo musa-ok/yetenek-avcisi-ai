@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../app_services.dart';
+import '../core/utils/profile_formatters.dart';
 
 /// ==========================================
 /// MULTI-UPLOAD SERVİSİ
@@ -180,7 +181,12 @@ class MultiVideoPlayer {
       slotBreakdown: _parseSlotBreakdown(json),
       analysisVersion: json['analysis_version'] as String? ??
           skillScores['analysis_version'] as String?,
-      aiSummaryReport: json['ai_summary_report'],
+      aiSummaryReport: () {
+        final raw = json['ai_summary_report'];
+        if (raw == null) return null;
+        final clean = stripAnalysisDisclaimer('$raw');
+        return clean.isEmpty ? null : clean;
+      }(),
       aiStrengths: List<String>.from(json['ai_strengths'] ?? []),
       aiImprovements: List<String>.from(json['ai_improvements'] ?? []),
       // AI Skorlar (int veya double olabilir, toInt() ile güvenli çevir)

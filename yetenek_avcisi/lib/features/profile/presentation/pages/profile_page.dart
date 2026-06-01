@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../app_services.dart';
+import 'package:yetenek_avcisi/app_theme.dart' show AppSnackBars;
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/pages/login_page.dart';
 
@@ -252,10 +253,7 @@ class ProfilePage extends StatelessWidget {
       if (!context.mounted) return;
       context.read<AuthBloc>().add(AuthLogoutRequested());
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Hesabınız ve verileriniz kalıcı olarak silindi.'),
-          backgroundColor: Colors.green,
-        ),
+        AppSnackBars.success('Hesabınız ve verileriniz kalıcı olarak silindi.'),
       );
     } catch (e) {
       if (!context.mounted) return;

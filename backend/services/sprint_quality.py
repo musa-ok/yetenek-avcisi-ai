@@ -10,6 +10,32 @@ GATE_START_RATIO = 0.18
 GATE_END_RATIO = 0.82
 
 
+def _user_rejection_reason(measured: dict[str, Any], distance_m: float) -> str:
+    """Kullanıcıya gösterilecek red metni — süre/mesafe gibi teknik ölçüm yok."""
+    msg = (measured.get("message") or "").lower()
+    if "açılamadı" in msg or "çok kısa" in msg:
+        return "Video okunamadı veya çok kısa. Lütfen yeniden çekin."
+    if "belirgin koşu" in msg or "çizgi" in msg or "koni" in msg:
+        return (
+            "Başlangıç ve bitiş çizgisi (veya koni) net görünmüyor "
+            "ya da koşu kadrajda seçilemiyor."
+        )
+    if "aralık" in msg or "beklenen" in msg:
+        if distance_m >= 15:
+            return (
+                "20 metrelik koşunun tamamı tek videoda görünmüyor "
+                "veya çekim kesilmiş olabilir."
+            )
+        return (
+            "10 metrelik yokuş koşusu kadrajda net değil "
+            "veya çekim kesilmiş olabilir."
+        )
+    return (
+        "Hız testi videosu ölçülemiyor. Telefonu sabitleyin, yan çekim yapın "
+        "ve başlangıç/bitiş çizgilerini kadraja alın."
+    )
+
+
 def assess_kosu_upload(
     video_path: str,
     *,
@@ -51,7 +77,9 @@ def assess_kosu_upload(
         if "hareket" in msg.lower() or "belirgin" in msg.lower():
             tips.append("Oyuncu küçük görünüyor — kamerayı 5–8 m yana alın, zoom kullanmayın.")
         if "aralık" in msg.lower():
-            tips.append("Süre mantıksız — muhtemelen kadrajda tüm sprint yok veya video kesik.")
+            tips.append(
+                "Muhtemelen tüm koşu mesafesi kadrajda değil veya video erken kesilmiş."
+            )
     elif conf < 0.58:
         quality = "warn"
         tips.extend([
@@ -61,7 +89,9 @@ def assess_kosu_upload(
     else:
         tips.append("Çekim koşulları ölçüm için uygun görünüyor.")
 
-    block = strict_block and quality == "poor" and seconds is None
+    out_of_range = "aralık" in msg.lower() or "beklenen" in msg.lower()
+    block = strict_block and quality == "poor" and (seconds is None or out_of_range)
+    user_message = _user_rejection_reason(measured, distance_m) if block else None
 
     return {
         "quality": quality,
@@ -72,6 +102,7 @@ def assess_kosu_upload(
         "tips": tips,
         "block_upload": block,
         "message": msg if block else "OK",
+        "user_message": user_message,
         "retake_recommended": quality in ("poor", "warn"),
         "frames_analyzed": measured.get("frames_analyzed"),
         "horizontal_span_px": measured.get("horizontal_span_px"),

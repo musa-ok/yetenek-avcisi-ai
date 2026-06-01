@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,6 +21,71 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
   String? _selectedFileName;
   _UploadStatus _status = _UploadStatus.idle;
   String? _errorMessage;
+  bool _checkingDocument = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDocumentState();
+  }
+
+  Future<void> _loadDocumentState() async {
+    final cached = currentUserNotifier.value;
+    if (cached != null && cached.hasScoutDocumentSubmitted) {
+      if (mounted) {
+        setState(() {
+          _status = _UploadStatus.success;
+          _checkingDocument = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final user = await BackendApi.fetchCurrentUser();
+      await SessionStore.updateUser(user);
+      if (!mounted) return;
+      setState(() {
+        _status = user.hasScoutDocumentSubmitted
+            ? _UploadStatus.success
+            : _UploadStatus.idle;
+        _checkingDocument = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _checkingDocument = false);
+    }
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151C2B),
+        title: const Text('Çıkış yap', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Başka bir hesapla giriş yapmak için çıkış yapılacak.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Çıkış Yap', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await SessionStore.clear();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const SessionRouter()),
+      (route) => false,
+    );
+  }
 
   Future<void> _pickFromGallery() async {
     final picker = ImagePicker();
@@ -72,8 +138,8 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
   Future<void> _submitDocument() async {
     if (_selectedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen önce bir belge seçin.'),
+        AppSnackBars.custom(
+          'Lütfen önce bir belge seçin.',
           backgroundColor: Colors.orange,
         ),
       );
@@ -97,7 +163,26 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
       final response = await request.send().timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        setState(() => _status = _UploadStatus.success);
+        final body = await response.stream.bytesToString();
+        String? docUrl;
+        try {
+          final decoded = jsonDecode(body);
+          if (decoded is Map && decoded['document_url'] != null) {
+            docUrl = '${decoded['document_url']}';
+          }
+        } catch (_) {}
+
+        final current = currentUserNotifier.value;
+        if (current != null) {
+          final updated = current.copyEnsuringFields(
+            scoutDocumentUrlOverride: docUrl ?? 'submitted',
+          );
+          await SessionStore.updateUser(updated);
+        } else {
+          await _loadDocumentState();
+        }
+
+        if (mounted) setState(() => _status = _UploadStatus.success);
       } else {
         final body = await response.stream.bytesToString();
         setState(() {
@@ -114,114 +199,199 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
     }
   }
 
+  bool get _documentAlreadySubmitted => _status == _UploadStatus.success;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // İkon
-              Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  color: AppColors.accentGreen.withOpacity(0.12),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.accentGreen.withOpacity(0.4), width: 2),
-                ),
-                child: Icon(Icons.verified_user_outlined, color: AppColors.accentGreen, size: 44),
-              ),
-              const SizedBox(height: 24),
-
-              // Başlık
-              Text(
-                'Scout Onay Bekliyor',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-
-              // Açıklama
-              Text(
-                'Kayıt ve e-posta doğrulamanız tamamlandı. Scout hesabınızın tam olarak açılması için yönetici onayı gerekiyor; lütfen Scout olduğunuzu kanıtlayan belgenizi yükleyin.',
-                style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.55),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'TFF Lisansı, Kulüp Kartı veya PFSA Sertifikası kabul edilmektedir.',
-                style: TextStyle(color: Colors.white38, fontSize: 13, height: 1.5),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 36),
-
-              if (_status == _UploadStatus.success) ...[
-                _buildSuccessBanner(),
-                const SizedBox(height: 24),
-                _buildLogoutButton(),
-              ] else ...[
-                // Dosya seçme kartı
-                _buildFilePickerCard(),
-                const SizedBox(height: 24),
-
-                // Hata mesajı
-                if (_status == _UploadStatus.error && _errorMessage != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.red.withOpacity(0.3)),
-                    ),
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-
-                // Gönder butonu
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _status == _UploadStatus.uploading ? null : _submitDocument,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accentGreen,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: _status == _UploadStatus.uploading
-                        ? const SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.black87,
-                            ),
-                          )
-                        : const Text(
-                            'Belgeyi Gönder',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                          ),
-                  ),
-                ),
-              ],
-            ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _logout();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0B0F19),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0B0F19),
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          title: const Text(
+            'Scout Onayı',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
           ),
+          actions: [
+            TextButton.icon(
+              onPressed: _logout,
+              icon: const Icon(Icons.logout_rounded, size: 20, color: Colors.white70),
+              label: const Text(
+                'Çıkış',
+                style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
         ),
+        body: _checkingDocument
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.accentGreen),
+              )
+            : SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          color: AppColors.accentGreen.withOpacity(0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.accentGreen.withOpacity(0.4),
+                            width: 2,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.verified_user_outlined,
+                          color: AppColors.accentGreen,
+                          size: 44,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Scout Onay Bekliyor',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _documentAlreadySubmitted
+                            ? 'Belgeniz alındı ve inceleniyor. Yönetici onayından sonra hesabınız tam olarak açılacak; e-posta ile bilgilendirileceksiniz.'
+                            : 'Kayıt ve e-posta doğrulamanız tamamlandı. Scout hesabınızın tam olarak açılması için yönetici onayı gerekiyor; lütfen Scout olduğunuzu kanıtlayan belgenizi yükleyin.',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 15,
+                          height: 1.55,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (!_documentAlreadySubmitted) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'TFF Lisansı, Kulüp Kartı veya PFSA Sertifikası kabul edilmektedir.',
+                          style: TextStyle(
+                            color: Colors.white38,
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                      const SizedBox(height: 36),
+                      if (_documentAlreadySubmitted) ...[
+                        _buildSuccessBanner(),
+                        const SizedBox(height: 24),
+                        OutlinedButton.icon(
+                          onPressed: _loadDocumentState,
+                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                          label: const Text('Durumu yenile'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: const BorderSide(color: Colors.white24),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 20,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        _buildFilePickerCard(),
+                        const SizedBox(height: 24),
+                        if (_status == _UploadStatus.error && _errorMessage != null)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            ),
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 13,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _status == _UploadStatus.uploading
+                                ? null
+                                : _submitDocument,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.accentGreen,
+                              foregroundColor: AppColors.onAccentGreen,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: _status == _UploadStatus.uploading
+                                ? const SizedBox(
+                                    height: 22,
+                                    width: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Color(0xFF0B0F19),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Belgeyi Gönder',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _logout,
+                          icon: const Icon(Icons.logout_rounded, size: 18),
+                          label: const Text(
+                            'Çıkış Yap',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: const BorderSide(color: Colors.white24),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -314,31 +484,6 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
             const SizedBox(height: 6),
             Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogoutButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () async {
-          await SessionStore.clear();
-          if (mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const SessionRouter()),
-              (route) => false,
-            );
-          }
-        },
-        icon: const Icon(Icons.logout_rounded, size: 18),
-        label: const Text('Çıkış Yap', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white70,
-          side: const BorderSide(color: Colors.white24),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
     );

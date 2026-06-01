@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../app_services.dart';
+import 'package:yetenek_avcisi/app_theme.dart' show AppSnackBars;
 
 /// ==========================================
 /// BİLGİLERİM EKRANI
@@ -82,20 +83,7 @@ class _MyInfoScreenState extends State<MyInfoScreen> {
       // Başarılı bildirim
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 12),
-                Text('Bilgileriniz güncellendi'),
-              ],
-            ),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+          AppSnackBars.successWithIcon('Bilgileriniz güncellendi'),
         );
       }
       

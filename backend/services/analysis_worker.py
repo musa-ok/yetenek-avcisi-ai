@@ -149,6 +149,9 @@ def run_multivideo_finalize(player_id: int) -> dict:
         skill_scores = slot_scoring.aggregate_slot_results(slot_results)
         breakdown = skill_scores.get("slot_breakdown") or []
         new_ovr = slot_scoring.compute_ovr(player.position or "", skill_scores)
+        skill_scores = slot_scoring.ensure_fifa_six_in_skill_scores(
+            skill_scores, new_ovr
+        )
 
         if player.overall_rating and player.overall_rating > 35:
             player.previous_overall_rating = player.overall_rating

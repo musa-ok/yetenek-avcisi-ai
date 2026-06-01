@@ -740,10 +740,12 @@ async def upload_kosu_slot_video(
 
         quality = assess_kosu_upload(temp_path, distance_m=dist, strict_block=True)
         if quality.get("block_upload"):
-            tip = (quality.get("tips") or ["Çekimi iyileştirip tekrar deneyin."])[0]
+            reason = quality.get("user_message") or (
+                (quality.get("tips") or ["Çekimi iyileştirip tekrar deneyin."])[0]
+            )
             raise HTTPException(
                 status_code=400,
-                detail=f"Koşu videosu ölçülemedi: {quality.get('message', '')} {tip}",
+                detail=f"Video kabul edilmedi. {reason}",
             )
 
         video_url = storage_service.upload_video_bytes(
@@ -1047,9 +1049,11 @@ def list_pending_scouts(
     for u, referrer in rows:
         referrer_name = None
         referrer_email = None
+        referrer_code = None
         if referrer is not None:
             referrer_name = (referrer.full_name or "").strip() or None
             referrer_email = referrer.email
+            referrer_code = referrer.referral_code
         result.append(
             {
                 "id": u.id,
@@ -1061,6 +1065,7 @@ def list_pending_scouts(
                 "referred_by_user_id": u.referred_by_user_id,
                 "referrer_name": referrer_name,
                 "referrer_email": referrer_email,
+                "referrer_code": referrer_code,
             }
         )
     return result
@@ -1100,6 +1105,45 @@ def approve_scout(
                   (" Onay maili gönderildi." if email_sent else " Mail gönderilemedi."),
         "user_id": user_id,
         "email_sent": email_sent
+    }
+
+
+@router.put("/admin/reject-scout/{user_id}", tags=["Admin"])
+def reject_scout(
+    user_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Bekleyen scout başvurusunu reddet (sadece admin). Kullanıcı kaydı silinir."""
+    if (current_user.role or "").lower() != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="Sadece adminler erişebilir.")
+
+    target = db.query(models.User).filter(models.User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+    if target.role != ROLE_PENDING_SCOUT:
+        raise HTTPException(
+            status_code=400,
+            detail="Yalnızca onay bekleyen scout başvuruları reddedilebilir.",
+        )
+
+    name = target.full_name or target.email
+    user_email = target.email
+    db.delete(target)
+    db.commit()
+
+    email_sent = False
+    if user_email:
+        email_sent = email_service.send_rejection_email(
+            user_email=user_email,
+            user_name=name or user_email,
+        )
+
+    return {
+        "message": f"{name} başvurusu reddedildi."
+        + (" Red bildirim e-postası gönderildi." if email_sent else " E-posta gönderilemedi."),
+        "user_id": user_id,
+        "email_sent": email_sent,
     }
 
 

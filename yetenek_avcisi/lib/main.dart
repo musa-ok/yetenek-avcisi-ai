@@ -30,6 +30,7 @@ import 'package:yetenek_avcisi/core/deep_link/deep_link_service.dart';
 import 'package:yetenek_avcisi/core/settings/app_settings.dart';
 import 'package:yetenek_avcisi/core/utils/share_helper.dart';
 import 'package:yetenek_avcisi/core/utils/fifa_share_image.dart';
+import 'package:yetenek_avcisi/core/utils/fifa_six_stats.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -1096,6 +1097,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
+  final TextEditingController _referralCodeController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _submitting = false;
@@ -1118,6 +1120,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   static final _emailRegex = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$');
+
+  Future<void> _loadPendingReferralCode() async {
+    final code = await DeepLinkService.peekPendingInvite();
+    if (code != null && code.trim().isNotEmpty && mounted) {
+      _referralCodeController.text = code.trim().toUpperCase();
+    }
+  }
 
   Widget _buildPasswordStrengthBar() {
     const labels = ['', 'Zayıf', 'Orta', 'Güçlü'];
@@ -1188,6 +1197,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    _loadPendingReferralCode();
     _emailController.addListener(() {
       final email = _emailController.text.trim();
       setState(() {
@@ -1212,6 +1222,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _referralCodeController.dispose();
     super.dispose();
   }
 
@@ -1292,7 +1303,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _submitting = true);
     try {
-      final referralCode = await DeepLinkService.consumePendingInvite();
+      final manualReferral = _referralCodeController.text.trim();
+      final pendingReferral = await DeepLinkService.consumePendingInvite();
+      final referralCode = manualReferral.isNotEmpty
+          ? manualReferral
+          : pendingReferral;
       await BackendApi.register(
         fullName: fullName,
         email: email,
@@ -1301,7 +1316,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         phoneNumber: phone,
         birthDate: _birthDate!.toIso8601String(),
         age: _calculateAge(_birthDate!),
-        referralCode: referralCode,
+        referralCode:
+            _selectedRole == 'Scout' ? referralCode : null,
       );
       
       if (!mounted) return;
@@ -1620,6 +1636,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
               ),
             ),
+            if (_selectedRole == 'Scout') ...[
+              const SizedBox(height: 14),
+              AuthTextField(
+                controller: _referralCodeController,
+                hintText: 'Davet kodu (isteğe bağlı)',
+                textCapitalization: TextCapitalization.characters,
+                prefixIcon: Icons.card_giftcard_outlined,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, top: 6),
+                child: Text(
+                  'Sizi davet eden scout\'un kodunu girin veya davet linkiyle geldiyseniz otomatik dolar.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             AuthTextField(
               controller: _emailController,
@@ -1856,6 +1892,7 @@ class AuthTextField extends StatelessWidget {
     required this.hintText,
     this.obscureText = false,
     this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
     this.prefixIcon,
     this.suffixIcon,
   });
@@ -1864,6 +1901,7 @@ class AuthTextField extends StatelessWidget {
   final String hintText;
   final bool obscureText;
   final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
   final IconData? prefixIcon;
   final Widget? suffixIcon;
 
@@ -1873,6 +1911,7 @@ class AuthTextField extends StatelessWidget {
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hintText,
@@ -2148,6 +2187,35 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
     _loadLatestAnalysis();
   }
 
+  static bool _hasPublicScoutReport(PlayerListItem p) {
+    final r = p.aiScoutReport;
+    return r != null &&
+        r.trim().isNotEmpty &&
+        r != 'Rapor oluşturulamadı';
+  }
+
+  /// Ana sayfa öne çıkanlar — Keşfet ile aynı rapor filtresi; futbolcu kendi profilini görür.
+  List<PlayerListItem> _featuredCarouselPlayers(
+    List<PlayerListItem> players,
+    String role,
+    int userId,
+  ) {
+    var list = players.where(_hasPublicScoutReport).toList();
+    final isFutbolcu = role.toLowerCase() == 'futbolcu';
+    if (isFutbolcu) {
+      list.sort((a, b) {
+        final aMine = a.userId == userId;
+        final bMine = b.userId == userId;
+        if (aMine != bMine) return aMine ? -1 : 1;
+        return b.overallRating.compareTo(a.overallRating);
+      });
+    } else {
+      list = list.where((p) => p.userId != userId).toList()
+        ..sort((a, b) => b.overallRating.compareTo(a.overallRating));
+    }
+    return list.take(12).toList();
+  }
+
   // Kullanıcının en son çoklu-video analizini çek ve global notifier'a yaz.
   // Böylece 'Benim İstatistiklerim' kartları "—" yerine gerçek skorları gösterir.
   Future<void> _loadLatestAnalysis() async {
@@ -2164,14 +2232,15 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
         ..sort((a, b) => b.id.compareTo(a.id));
       if (mine.isEmpty) return;
       final latest = mine.first;
+      final six = latest.fifaSix;
       latestAnalysisNotifier.value = AnalysisResult(
         overall: latest.overallRating,
-        pace: latest.pace,
-        finishing: latest.finishing,
-        passing: latest.passing,
-        dribbling: latest.dribbling,
-        defending: latest.defending,
-        physical: latest.strength,
+        pace: six.pace,
+        finishing: six.finishing,
+        passing: six.passing,
+        dribbling: six.dribbling,
+        defending: six.defending,
+        physical: six.strength,
         report: latest.aiSummaryReport ?? '',
       );
     } catch (_) {
@@ -2198,10 +2267,11 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
             ? playerSnap.data!
             : <PlayerListItem>[];
         final loadFailed = playerSnap.hasError;
-        final carousel = players
-            .where((p) => p.userId != widget.user.id)
-            .take(12)
-            .toList();
+        final carousel = _featuredCarouselPlayers(
+          players,
+          role,
+          widget.user.id,
+        );
 
         return ValueListenableBuilder<AnalysisResult?>(
           valueListenable: latestAnalysisNotifier,
@@ -2669,9 +2739,10 @@ Future<void> showExplorePlayerSheet(
   );
 }
 
-class _ExploreRangeFilter extends StatelessWidget {
-  const _ExploreRangeFilter({
-    required this.label,
+/// Keşfet — kompakt yaş / OVR aralığı (tek satır + ince slider).
+class _ExploreCompactRangeRow extends StatelessWidget {
+  const _ExploreCompactRangeRow({
+    required this.title,
     required this.values,
     required this.min,
     required this.max,
@@ -2679,7 +2750,7 @@ class _ExploreRangeFilter extends StatelessWidget {
     required this.onChangeEnd,
   });
 
-  final String label;
+  final String title;
   final RangeValues values;
   final double min;
   final double max;
@@ -2688,32 +2759,58 @@ class _ExploreRangeFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+    final start = values.start.round();
+    final end = values.end.round();
+    return SliderTheme(
+      data: SliderTheme.of(context).copyWith(
+        trackHeight: 3,
+        rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 6),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+        tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 0),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 34,
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
           ),
-        ),
-        RangeSlider(
-          values: values,
-          min: min,
-          max: max,
-          divisions: (max - min).round(),
-          activeColor: kPitchGreen,
-          inactiveColor: Colors.white24,
-          labels: RangeLabels(
-            values.start.round().toString(),
-            values.end.round().toString(),
+          Expanded(
+            child: SizedBox(
+              height: 32,
+              child: RangeSlider(
+                values: values,
+                min: min,
+                max: max,
+                divisions: (max - min).round(),
+                activeColor: kPitchGreen,
+                inactiveColor: Colors.white24,
+                onChanged: onChanged,
+                onChangeEnd: onChangeEnd,
+              ),
+            ),
           ),
-          onChanged: onChanged,
-          onChangeEnd: onChangeEnd,
-        ),
-      ],
+          SizedBox(
+            width: 56,
+            child: Text(
+              '$start–$end',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2874,7 +2971,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   fillColor: kElevatedCard,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 14,
+                    vertical: 12,
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -2890,7 +2987,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               DropdownButtonFormField<String?>(
                 value: _selectedCity,
                 isExpanded: true,
@@ -2903,7 +3000,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   prefixIcon: const Icon(Icons.location_city_outlined, color: kPitchGreen),
                   filled: true,
                   fillColor: kElevatedCard,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: Colors.white12),
@@ -2937,59 +3034,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   _refresh();
                 },
               ),
-              const SizedBox(height: 14),
-              _ExploreRangeFilter(
-                label:
-                    'Yaş: ${_ageRange.start.round()} – ${_ageRange.end.round()}',
-                values: _ageRange,
-                min: _ageSliderMin,
-                max: _ageSliderMax,
-                onChanged: (v) => setState(() => _ageRange = v),
-                onChangeEnd: (_) => _refresh(),
-              ),
-              const SizedBox(height: 10),
-              _ExploreRangeFilter(
-                label:
-                    'OVR: ${_ovrRange.start.round()} – ${_ovrRange.end.round()}',
-                values: _ovrRange,
-                min: _ovrSliderMin,
-                max: _ovrSliderMax,
-                onChanged: (v) => setState(() => _ovrRange = v),
-                onChangeEnd: (_) => _refresh(),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilterChip(
-                    label: const Text('Son 7 gün yükselen'),
-                    selected: _rising7d,
-                    onSelected: (v) {
-                      setState(() => _rising7d = v);
-                      _refresh();
-                    },
-                    labelStyle: TextStyle(
-                      color: _rising7d ? Colors.black : Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    backgroundColor: kElevatedCard,
-                    selectedColor: kPitchGreen,
-                    checkmarkColor: Colors.black,
-                    side: const BorderSide(color: Colors.white12),
-                  ),
-                  ActionChip(
-                    label: const Text('Filtrele'),
-                    onPressed: _refresh,
-                    labelStyle: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    backgroundColor: kElevatedCard,
-                    side: const BorderSide(color: Colors.white12),
-                  ),
-                ],
-              ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -2998,8 +3042,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     .map(
                       (position) => FilterChip(
                         selected: _selectedPosition == position,
-                        onSelected: (_) =>
-                            setState(() => _selectedPosition = position),
+                        onSelected: (_) {
+                          setState(() => _selectedPosition = position);
+                          _refresh();
+                        },
                         label: Text(l.posChip(position)),
                         showCheckmark: false,
                         labelStyle: TextStyle(
@@ -3014,6 +3060,56 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                     )
                     .toList(),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+                decoration: BoxDecoration(
+                  color: kElevatedCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Column(
+                  children: [
+                    _ExploreCompactRangeRow(
+                      title: 'Yaş',
+                      values: _ageRange,
+                      min: _ageSliderMin,
+                      max: _ageSliderMax,
+                      onChanged: (v) => setState(() => _ageRange = v),
+                      onChangeEnd: (_) => _refresh(),
+                    ),
+                    Divider(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                    _ExploreCompactRangeRow(
+                      title: 'OVR',
+                      values: _ovrRange,
+                      min: _ovrSliderMin,
+                      max: _ovrSliderMax,
+                      onChanged: (v) => setState(() => _ovrRange = v),
+                      onChangeEnd: (_) => _refresh(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              FilterChip(
+                label: const Text('Son 7 gün yükselen'),
+                selected: _rising7d,
+                onSelected: (v) {
+                  setState(() => _rising7d = v);
+                  _refresh();
+                },
+                labelStyle: TextStyle(
+                  color: _rising7d ? Colors.black : Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+                backgroundColor: kElevatedCard,
+                selectedColor: kPitchGreen,
+                checkmarkColor: Colors.black,
+                side: const BorderSide(color: Colors.white12),
               ),
             ],
           );
@@ -3464,13 +3560,6 @@ class ClubProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               _ProfileOptionTile(
-                icon: Icons.logout_rounded,
-                title: l.logout,
-                isDanger: true,
-                onTap: () => _handleLogoutTap(context),
-              ),
-              const SizedBox(height: 10),
-              _ProfileOptionTile(
                 icon: Icons.download_rounded,
                 title: l.en ? 'Export My Data (KVKK)' : 'Verilerimi İndir (KVKK)',
                 onTap: () async {
@@ -3513,8 +3602,17 @@ class ClubProfileScreen extends StatelessWidget {
                   onTap: () async {
                     try {
                       final ref = await BackendApi.fetchReferralLink();
+                      final code = '${ref['referral_code'] ?? ''}'.trim();
                       final text = '${ref['share_text'] ?? ref['https_link']}';
                       if (!context.mounted) return;
+                      if (code.isNotEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          AppSnackBars.success(
+                            'Davet kodunuz: $code',
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      }
                       await ShareHelper.shareText(text, context: context);
                     } catch (e) {
                       if (context.mounted) {
@@ -3526,8 +3624,14 @@ class ClubProfileScreen extends StatelessWidget {
                   },
                 ),
               ],
+              const SizedBox(height: 16),
+              _ProfileOptionTile(
+                icon: Icons.logout_rounded,
+                title: l.logout,
+                isDanger: true,
+                onTap: () => _handleLogoutTap(context),
+              ),
               const SizedBox(height: 10),
-              // Hesap Silme Butonu - Apple App Store 5.1.1(v)
               _ProfileOptionTile(
                 icon: Icons.delete_forever_rounded,
                 title: l.en ? 'Delete Account' : 'Hesabımı Sil',
@@ -3544,16 +3648,7 @@ class ClubProfileScreen extends StatelessWidget {
   void _showInfo(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: kPitchGreen,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      ..showSnackBar(AppSnackBars.success(message));
   }
 
   Future<void> _openMyInfo(BuildContext context) async {
@@ -5015,13 +5110,14 @@ class _MyStatisticsScreenState extends State<MyStatisticsScreen> with WidgetsBin
   }
 
   Widget _buildSixMetricGrid(MultiVideoPlayer player, bool hasAnalysis) {
+    final six = player.fifaSix;
     final metrics = [
-      {'label': 'Hız',       'value': player.pace,             'icon': Icons.speed},
-      {'label': 'Şut',       'value': player.finishing,        'icon': Icons.sports_soccer},
-      {'label': 'Pas',       'value': player.passing,          'icon': Icons.swap_horiz},
-      {'label': 'Dripling',  'value': player.dribbling,        'icon': Icons.control_camera},
-      {'label': 'Defans',    'value': player.defending,        'icon': Icons.shield_outlined},
-      {'label': 'Fizik',     'value': player.strength,         'icon': Icons.fitness_center},
+      {'label': 'Hız',       'value': six.pace,       'icon': Icons.speed},
+      {'label': 'Şut',       'value': six.finishing,  'icon': Icons.sports_soccer},
+      {'label': 'Pas',       'value': six.passing,    'icon': Icons.swap_horiz},
+      {'label': 'Dripling',  'value': six.dribbling,  'icon': Icons.control_camera},
+      {'label': 'Defans',    'value': six.defending,  'icon': Icons.shield_outlined},
+      {'label': 'Fizik',     'value': six.strength,   'icon': Icons.fitness_center},
     ];
 
     return GridView.builder(
@@ -7926,20 +8022,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 12),
-                const Text('Profil bilgileriniz güncellendi'),
-              ],
-            ),
-            backgroundColor: kPitchGreen,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+          AppSnackBars.successWithIcon('Profil bilgileriniz güncellendi'),
         );
         Navigator.pop(context);
       }

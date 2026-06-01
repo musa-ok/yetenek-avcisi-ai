@@ -7,6 +7,7 @@ import models
 import models_multivideo
 from services import rating_helpers as rh
 from services.combined_rating import apply_combined_to_player_payload
+from services.report_text import strip_analysis_disclaimer
 
 # Geriye uyumluluk
 scout_ratings_for_legacy = rh.scout_ratings_for_legacy
@@ -25,7 +26,7 @@ def player_to_dict(player: models.Player, db: Optional[Session] = None, current_
         "position": player.position,
         "overall_rating": player.overall_rating,
         "phone_number": owner.phone_number if owner else None,
-        "ai_scout_report": player.ai_scout_report,
+        "ai_scout_report": strip_analysis_disclaimer(player.ai_scout_report),
         "video_url": getattr(player, "video_url", None),
         "source": "legacy",
         "scout_ratings": scout_ratings_for_legacy(db, player.id, current_user_id=current_user_id) if db else [],
@@ -137,7 +138,7 @@ def multivideo_to_public_dict(
         "height_cm": p.height_cm,
         "weight_kg": p.weight_kg,
         "previous_overall_rating": p.previous_overall_rating,
-        "ai_scout_report": p.ai_summary_report,
+        "ai_scout_report": strip_analysis_disclaimer(p.ai_summary_report),
         "source": "multivideo",
         "scout_ratings": scout_ratings,
         "video_url": main_video_url,

@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import '../app_theme.dart';
 import '../services/multi_upload_service.dart';
+import '../core/utils/fifa_six_stats.dart';
 import '../widgets/analysis_finalize_dialog.dart';
 import '../widgets/smart_summary_card.dart';
 import '../widgets/slot_breakdown_card.dart';
@@ -373,16 +374,14 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
                              _player.aiSummaryReport!.isNotEmpty;
     final cardColor = hasAnalysis ? _getScoreColor(overallScore) : Colors.grey;
     
-    debugPrint('[PlayerStats] RAW: pace=${_player.pace}(${_player.pace?.runtimeType}) finishing=${_player.finishing}(${_player.finishing?.runtimeType})');
-    debugPrint('[PlayerStats] skill_scores=${_player.skillScores}');
-    
+    final six = _player.fifaSix;
     final skills = [
-      {'name': 'HIZ', 'value': _player.pace, 'icon': Icons.speed},
-      {'name': 'ŞUT', 'value': _player.finishing, 'icon': Icons.sports_soccer},
-      {'name': 'PAS', 'value': _player.passing, 'icon': Icons.swap_horiz},
-      {'name': 'DRİBLİNG', 'value': _player.dribbling, 'icon': Icons.control_camera},
-      {'name': 'DEFANS', 'value': _player.defending, 'icon': Icons.shield},
-      {'name': 'FİZİK', 'value': _player.strength, 'icon': Icons.fitness_center},
+      {'name': 'HIZ', 'value': six.pace, 'icon': Icons.speed},
+      {'name': 'ŞUT', 'value': six.finishing, 'icon': Icons.sports_soccer},
+      {'name': 'PAS', 'value': six.passing, 'icon': Icons.swap_horiz},
+      {'name': 'DRİBLİNG', 'value': six.dribbling, 'icon': Icons.control_camera},
+      {'name': 'DEFANS', 'value': six.defending, 'icon': Icons.shield},
+      {'name': 'FİZİK', 'value': six.strength, 'icon': Icons.fitness_center},
     ];
 
     return Container(
@@ -414,15 +413,15 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
               itemCount: 6,
               itemBuilder: (context, index) {
                 final s = skills[index];
-                final val = s['value'] as int?;
-                final color = val != null ? _getScoreColor(val) : Colors.grey;
+                final val = s['value'] as int;
+                final color = hasAnalysis ? _getScoreColor(val) : Colors.grey;
                 return Container(
                   decoration: BoxDecoration(color: Colors.black.withOpacity(0.3), borderRadius: BorderRadius.circular(12)),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(s['icon'] as IconData, color: color, size: 20),
-                      Text(val != null ? '$val' : '-', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+                      Text(hasAnalysis ? '$val' : '-', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
                       Text(s['name'] as String, style: TextStyle(color: Colors.white60, fontSize: 9)),
                     ],
                   ),

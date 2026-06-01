@@ -14,6 +14,7 @@ from position_skills_config import (
     position_has_kosu_slot,
 )
 from services import multivideo_slots as mvs
+from services.slot_scoring import ensure_fifa_six_in_skill_scores
 
 
 class PlayerMultiVideo(Base):
@@ -108,6 +109,8 @@ class PlayerMultiVideo(Base):
     
     def to_dict(self):
         video_entries = [self.get_video_info(s) for s in (1, 2, 3)]
+        ovr = self.overall_rating or 50
+        ss = ensure_fifa_six_in_skill_scores(self.skill_scores or {}, ovr)
         return {
             "id": self.id,
             "user_id": self.user_id,
@@ -124,22 +127,22 @@ class PlayerMultiVideo(Base):
             "kosu_videos_by_slot": mvs._kosu_map(self),
             "uses_sprint_protocol": position_has_kosu_slot(self.position or ""),
             "videos": video_entries,
-            "skill_scores": self.skill_scores or {},
-            "slot_breakdown": (self.skill_scores or {}).get("slot_breakdown") or [],
-            "analysis_version": (self.skill_scores or {}).get("analysis_version"),
+            "skill_scores": ss,
+            "slot_breakdown": ss.get("slot_breakdown") or [],
+            "analysis_version": ss.get("analysis_version"),
             "ai_summary_report": self.ai_summary_report,
             "ai_strengths": self.ai_strengths or [],
             "ai_improvements": self.ai_improvements or [],
-            "pace": (self.skill_scores or {}).get("pace"),
-            "finishing": (self.skill_scores or {}).get("finishing"),
-            "passing": (self.skill_scores or {}).get("passing"),
-            "dribbling": (self.skill_scores or {}).get("dribbling"),
-            "defending": (self.skill_scores or {}).get("defending"),
-            "strength": (self.skill_scores or {}).get("strength"),
-            "technical_ability": (self.skill_scores or {}).get("technical_ability"),
-            "physical_attributes": (self.skill_scores or {}).get("physical_attributes"),
-            "tactical_awareness": (self.skill_scores or {}).get("tactical_awareness"),
-            "mental_attributes": (self.skill_scores or {}).get("mental_attributes"),
+            "pace": ss.get("pace"),
+            "finishing": ss.get("finishing"),
+            "passing": ss.get("passing"),
+            "dribbling": ss.get("dribbling"),
+            "defending": ss.get("defending"),
+            "strength": ss.get("strength"),
+            "technical_ability": ss.get("technical_ability"),
+            "physical_attributes": ss.get("physical_attributes"),
+            "tactical_awareness": ss.get("tactical_awareness"),
+            "mental_attributes": ss.get("mental_attributes"),
             "analysis_status": self.analysis_status,
             "analysis_error": self.analysis_error,
             "created_at": self.created_at.isoformat() if self.created_at else None,

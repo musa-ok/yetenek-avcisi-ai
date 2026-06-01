@@ -53,32 +53,24 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
   bool isAnalyzing = false; // AI analizi süreci kilitliyor
   int currentUploadingSlot = 0;
 
-  /// Yeşil/açık arka planda koyu metin; koyu arka planda beyaz metin.
   void _showAppSnack(
     String message, {
     Color? backgroundColor,
     Duration duration = const Duration(seconds: 3),
   }) {
     if (!mounted) return;
-    final bg = backgroundColor ?? const Color(0xFF2A3448);
-    final lightBackground = bg == AppColors.success ||
-        bg == AppColors.accentGreen ||
-        bg == AppColors.warning;
-    final fg = lightBackground ? const Color(0xFF0B0F19) : Colors.white;
-
+    final bg = backgroundColor ?? AppColors.surface;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (bg == AppColors.success || bg == AppColors.accentGreen) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackBars.success(message, duration: duration),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: TextStyle(
-            color: fg,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
+      AppSnackBars.custom(
+        message,
         backgroundColor: bg,
-        behavior: SnackBarBehavior.floating,
         duration: duration,
       ),
     );
@@ -155,7 +147,10 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.accentGreen),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accentGreen,
+              foregroundColor: AppColors.onAccentGreen,
+            ),
             child: const Text('Anladım, devam', style: TextStyle(color: Colors.black)),
           ),
         ],
@@ -171,7 +166,6 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
 
   void _showKosuQualityFeedback(BuildContext context, Map<String, dynamic> q) {
     final quality = '${q['quality'] ?? ''}';
-    final sec = q['timing_preview_sec'];
     final tips = (q['tips'] as List?)?.map((e) => '$e').toList() ?? [];
     final color = quality == 'good'
         ? AppColors.success
@@ -179,15 +173,17 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
             ? AppColors.warning
             : AppColors.accentBlue;
 
-    var msg = quality == 'good'
-        ? 'Ön ölçüm iyi'
-        : 'Video kabul edildi';
-    if (sec != null) {
-      msg += ' · ~${sec}s';
-      if (q['timing_method'] == 'gate_crossing') msg += ' (çizgi geçişi)';
-    }
-    if (tips.isNotEmpty && quality != 'good') {
-      msg += '\n${tips.first}';
+    final String msg;
+    if (quality == 'good') {
+      msg = 'Video kabul edildi. Çekim koşulları uygun görünüyor.';
+    } else if (quality == 'warn') {
+      msg = tips.isNotEmpty
+          ? 'Video kabul edildi. ${tips.first}'
+          : 'Video kabul edildi. Daha net çizgi/koni ile tekrar çekmeniz ölçümü iyileştirir.';
+    } else {
+      msg = tips.isNotEmpty
+          ? tips.first
+          : 'Video kabul edilmedi. Lütfen çekimi iyileştirip tekrar deneyin.';
     }
 
     _showAppSnack(
@@ -195,6 +191,29 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
       backgroundColor: color,
       duration: Duration(seconds: quality == 'good' ? 3 : 5),
     );
+  }
+
+  String _kosuUploadErrorMessage(Object e) {
+    var raw = '$e'.replaceFirst('Exception: ', '').trim();
+    final detailIdx = raw.indexOf('detail:');
+    if (detailIdx >= 0) {
+      raw = raw.substring(detailIdx + 7).trim();
+    }
+    if (raw.contains('Video kabul edilmedi')) {
+      return raw;
+    }
+    if (raw.toLowerCase().contains('uyumsuz video')) {
+      return raw;
+    }
+    if (raw.toLowerCase().contains('ölçülen süre') ||
+        raw.contains('beklenen aralık') ||
+        RegExp(r'\d+[,.]?\d*\s*s').hasMatch(raw)) {
+      return 'Video kabul edilmedi. Başlangıç ve bitiş çizgileri kadrajda görünsün, '
+          'telefon sabit olsun ve koşunun tamamı tek videoda kalsın.';
+    }
+    return raw.isEmpty
+        ? 'Video yüklenemedi. Lütfen tekrar deneyin.'
+        : 'Video yüklenemedi: $raw';
   }
 
   /// Video kaynağı seçimi (Kamera veya Galeri)
@@ -611,13 +630,11 @@ class _MultiUploadScreenState extends State<MultiUploadScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      final err = e.toString().replaceFirst('Exception: ', '');
+      final err = _kosuUploadErrorMessage(e);
       _showAppSnack(
-        err.toLowerCase().contains('uyumsuz video')
-            ? err
-            : 'Video yüklenemedi: $err',
+        err,
         backgroundColor: AppColors.error,
-        duration: Duration(seconds: err.toLowerCase().contains('uyumsuz') ? 6 : 4),
+        duration: const Duration(seconds: 6),
       );
     } finally {
       if (mounted) setState(() => currentUploadingSlot = 0);

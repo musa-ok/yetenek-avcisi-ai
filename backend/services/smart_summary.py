@@ -11,6 +11,7 @@ import models_multivideo
 import models_product
 from services import rating_helpers as rh
 from services.combined_rating import build_combined_rating
+from services.report_text import strip_analysis_disclaimer
 
 
 def _extract_short_summary(text: str, max_len: int = 320) -> str:
@@ -57,7 +58,7 @@ def build_smart_summary(
             return {"summary": "Oyuncu bulunamadı.", "sections": []}
         name = p.name or ""
         position = p.position or ""
-        report = (p.ai_summary_report or "").strip()
+        report = strip_analysis_disclaimer(p.ai_summary_report)
         community = rh.build_community_rating_summary_mv(db, player_id)
         combined = build_combined_rating(p.overall_rating or 0, community)
         ovr = combined.get("display_ovr") or p.overall_rating or 0
@@ -81,7 +82,7 @@ def build_smart_summary(
             return {"summary": "Oyuncu bulunamadı.", "sections": []}
         name = p.name or ""
         position = p.position or ""
-        report = (p.ai_scout_report or "").strip()
+        report = strip_analysis_disclaimer(p.ai_scout_report)
         community = rh.build_community_rating_summary(db, player_id)
         combined = build_combined_rating(p.overall_rating or 0, community)
         ovr = combined.get("display_ovr") or p.overall_rating or 0

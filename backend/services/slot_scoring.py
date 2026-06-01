@@ -189,6 +189,53 @@ def aggregate_slot_results(slot_results: list[dict[str, Any]]) -> dict[str, Any]
     return skill_scores
 
 
+_FIFA_ATTRS = ("pace", "finishing", "passing", "dribbling", "defending", "strength")
+
+
+def ensure_fifa_six_in_skill_scores(
+    skill_scores: dict[str, Any], ovr: int
+) -> dict[str, Any]:
+    """
+    Kart / istatistik için 6 ana metrik — ölçülmeyen slotlar için
+    mevcut skorların ortalamasıyla doldurulur (Forvet vb. yalnızca şut+dripling).
+    """
+    ss = dict(skill_scores or {})
+    breakdown = ss.get("slot_breakdown") or []
+
+    by_attr: dict[str, list[int]] = {k: [] for k in _FIFA_ATTRS}
+    extra_physical: list[int] = []
+    for row in breakdown:
+        if not isinstance(row, dict):
+            continue
+        score = row.get("score")
+        if score is None:
+            continue
+        s = max(1, min(100, int(score)))
+        attr = row.get("attribute") or ""
+        if attr in by_attr:
+            by_attr[attr].append(s)
+        elif attr == "physical_attributes":
+            extra_physical.append(s)
+
+    for attr, scores in by_attr.items():
+        if scores and ss.get(attr) is None:
+            ss[attr] = round(sum(scores) / len(scores))
+
+    if ss.get("strength") is None and extra_physical:
+        ss["strength"] = round(sum(extra_physical) / len(extra_physical))
+
+    known = [ss.get(k) for k in _FIFA_ATTRS if ss.get(k) is not None]
+    fill = (
+        max(1, min(99, round(sum(known) / len(known))))
+        if known
+        else max(1, min(99, int(ovr or 50)))
+    )
+    for k in _FIFA_ATTRS:
+        if ss.get(k) is None:
+            ss[k] = fill
+    return ss
+
+
 def compute_ovr(position: str, skill_scores: dict[str, Any]) -> int:
     weights = POSITION_OVR_WEIGHTS.get(position) or {
         "pace": 0.15,
@@ -261,9 +308,4 @@ def build_scout_report(
                 est = ""
             extra = f" Süre: {timing}s{est}."
         lines.append(f"• {lbl}: {sc}/100.{extra} {obs}")
-    lines.append("")
-    lines.append(
-        "Not: Koşu süreleri mümkünse video hareket analizi (OpenCV) ile ölçülür; "
-        "ölçülemezse AI tahmini kullanılır. Teknik form puanı AI değerlendirmesidir."
-    )
-    return "\n".join(lines)
+    return "\n".join(lines).strip()
