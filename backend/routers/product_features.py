@@ -15,6 +15,7 @@ from deps import get_current_user, get_optional_user, require_scout
 from services import player_helpers as ph
 from services.notifications import create_notification
 from services.player_discovery import discover_players_as_dicts
+from services.slot_scoring import ensure_fifa_six_in_skill_scores
 
 router = APIRouter(tags=["Product"])
 
@@ -48,16 +49,25 @@ def _profile_block(p: models_multivideo.PlayerMultiVideo, owner: Optional[models
     }
 
 
-def _skills_block(p: models_multivideo.PlayerMultiVideo):
-    skills = p.skill_scores or {}
+def _skills_block(p: models_multivideo.PlayerMultiVideo) -> dict[str, int]:
+    """Karsilastirma grafigi: AI / video analiz FIFA alti (topluluk degil)."""
     ovr = p.overall_rating or 50
+    skills = ensure_fifa_six_in_skill_scores(p.skill_scores or {}, ovr)
+
+    def _int(key: str, fallback: int) -> int:
+        v = skills.get(key, fallback)
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return fallback
+
     return {
-        "pac": skills.get("pace", ovr),
-        "sho": skills.get("finishing", ovr),
-        "pas": skills.get("passing", ovr),
-        "dri": skills.get("dribbling", ovr),
-        "def": skills.get("defending", ovr),
-        "phy": skills.get("strength", ovr),
+        "pac": _int("pace", ovr),
+        "sho": _int("finishing", ovr),
+        "pas": _int("passing", ovr),
+        "dri": _int("dribbling", ovr),
+        "def": _int("defending", ovr),
+        "phy": _int("strength", ovr),
     }
 
 
@@ -194,15 +204,6 @@ def compare_players(
         owner = db.query(models.User).filter(models.User.id == p.user_id).first()
         comm = ph.build_community_rating_summary_mv(db, pid)
         skills = _skills_block(p)
-        if comm.get("PAC"):
-            skills = {
-                "pac": comm["PAC"],
-                "sho": comm["SHO"],
-                "pas": comm["PAS"],
-                "dri": comm["DRI"],
-                "def": comm["DEF"],
-                "phy": comm["PHY"],
-            }
         return {
             "id": p.id,
             "name": p.name,
