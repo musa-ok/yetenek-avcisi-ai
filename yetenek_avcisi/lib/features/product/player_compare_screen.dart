@@ -31,7 +31,8 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
   String? _error;
   List<PlayerListItem> _candidatePool = const [];
   Set<String> _mineKeys = const {};
-  bool _onlyMine = false;
+  bool _onlyMineA = false;
+  bool _onlyMineB = false;
 
   @override
   void initState() {
@@ -177,8 +178,9 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
 
   Future<void> _pickFor({required bool sideA}) async {
     final anchor = sideA ? _b : _a;
+    final onlyMine = sideA ? _onlyMineA : _onlyMineB;
     final others = _candidatePool.where((p) {
-      if (_onlyMine && !_mineKeys.contains(_playerKey(p))) return false;
+      if (onlyMine && !_mineKeys.contains(_playerKey(p))) return false;
       return true;
     }).toList();
     if (others.isEmpty) return;
@@ -267,18 +269,24 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: FilterChip(
-                        selected: _onlyMine,
+                        selected: onlyMine,
                         label: const Text('Sadece benim analizlerim'),
-                        onSelected: (v) => setModalState(() => _onlyMine = v),
+                        onSelected: (v) => setModalState(() {
+                          if (sideA) {
+                            _onlyMineA = v;
+                          } else {
+                            _onlyMineB = v;
+                          }
+                        }),
                         backgroundColor: Colors.white.withValues(alpha: 0.06),
                         selectedColor: _green.withValues(alpha: 0.2),
                         checkmarkColor: _green,
                         labelStyle: TextStyle(
-                          color: _onlyMine ? _green : Colors.white70,
+                          color: onlyMine ? _green : Colors.white70,
                           fontSize: 12,
                         ),
                         side: BorderSide(
-                          color: _onlyMine
+                          color: onlyMine
                               ? _green.withValues(alpha: 0.45)
                               : Colors.white24,
                         ),
@@ -433,31 +441,12 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                   onTap: () => _pickFor(sideA: false),
                   child: _playerChip(
                     _b?.name ?? 'Oyuncu seç',
-                    _b == null ? 'Mevki • AI OVR • Tarih • Sürüm' : _metaLine(_b!),
+                    _b == null ? 'Mevki • AI OVR • Tarih' : _metaLine(_b!),
                     Colors.orangeAccent,
                   ),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilterChip(
-              selected: _onlyMine,
-              label: const Text('Sadece benim analizlerim'),
-              onSelected: (v) => setState(() => _onlyMine = v),
-              backgroundColor: Colors.white.withValues(alpha: 0.06),
-              selectedColor: _green.withValues(alpha: 0.2),
-              checkmarkColor: _green,
-              labelStyle: TextStyle(
-                color: _onlyMine ? _green : Colors.white70,
-                fontSize: 12,
-              ),
-              side: BorderSide(
-                color: _onlyMine ? _green.withValues(alpha: 0.45) : Colors.white24,
-              ),
-            ),
           ),
           if (_loadingCandidates)
             const Padding(
