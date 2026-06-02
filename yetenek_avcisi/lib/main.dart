@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
 import 'dart:io';
@@ -3752,6 +3753,7 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
   bool _mobileUploadAllowed = false;
   bool _loading = true;
   bool _saving = false;
+  bool _runningDiagnostics = false;
   String? _loadError;
 
   @override
@@ -3842,6 +3844,56 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
     }
   }
 
+  Future<void> _runPushDiagnostics() async {
+    if (_runningDiagnostics) return;
+    setState(() => _runningDiagnostics = true);
+    try {
+      final report = await PushNotificationService.runDiagnostics();
+      if (!mounted) return;
+      final text = report.prettyText();
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: kElevatedCard,
+          title: const Text(
+            'Push Tanı Raporu',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          ),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              text,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                height: 1.4,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: text));
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                _showSettingsSnack('Tanı raporu kopyalandı');
+              },
+              child: const Text('Kopyala', style: TextStyle(color: kPitchGreen)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Kapat', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showSettingsSnack('Tanı raporu alınamadı: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _runningDiagnostics = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = L10nScope.of(context);
@@ -3911,6 +3963,28 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
                     activeThumbColor: kPitchGreen,
                     activeTrackColor: kPitchGreen.withValues(alpha: 0.45),
                     onChanged: _onMobileUploadChanged,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _SettingsCard(
+                  title: 'Push Tanı Testi',
+                  subtitle: 'İzin, APNS, FCM ve backend 0/1 durumunu kontrol eder',
+                  trailing: OutlinedButton(
+                    onPressed: _runningDiagnostics ? null : _runPushDiagnostics,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: kPitchGreen,
+                      side: const BorderSide(color: kPitchGreen),
+                    ),
+                    child: _runningDiagnostics
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: kPitchGreen,
+                            ),
+                          )
+                        : const Text('Çalıştır'),
                   ),
                 ),
               ],
@@ -6456,7 +6530,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     );
   }
 
-  Widget _buildScoutEvaluationCard(PlayerListItem p, List<ScoutRating> ratings) {
+  Widget _buildScoutEvaluationCard(PlayerListItem p) {
     final report = (p.aiScoutReport ?? '').trim();
     return Container(
       width: double.infinity,
@@ -6474,7 +6548,7 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               Icon(Icons.psychology_alt_outlined, color: kPitchGreen, size: 20),
               const SizedBox(width: 8),
               const Text(
-                'Scout Değerlendirmesi',
+                'AI Scout Notu',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -6501,89 +6575,6 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               fontSize: 15,
             ),
           ),
-          const SizedBox(height: 14),
-          Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
-          const SizedBox(height: 12),
-          const Text(
-            'Scout Puanları',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (ratings.isEmpty)
-            Text(
-              'Henüz bir scout değerlendirmesi yapılmadı',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 14,
-                fontStyle: FontStyle.italic,
-              ),
-            )
-          else
-            ...ratings.map((r) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            r.scoutName,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (r.isMine) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: kPitchGreen.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: kPitchGreen.withValues(alpha: 0.4)),
-                            ),
-                            child: const Text(
-                              'Sizin puanınız',
-                              style: TextStyle(color: kPitchGreen, fontSize: 10, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: kPitchGreen.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.star, color: kPitchGreen, size: 14),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${r.score}',
-                          style: TextStyle(
-                            color: kPitchGreen,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            )),
         ],
       ),
     );
@@ -6865,12 +6856,13 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               onUpdated: (updated) => setState(() => _player = updated),
             ),
             const SizedBox(height: 16),
-            ScoutNotesSection(playerId: p.id, source: p.source),
-            const SizedBox(height: 20),
-            _buildScoutEvaluationCard(
-              p,
-              _scoutRatings.isNotEmpty ? _scoutRatings : p.scoutRatings,
+            ScoutNotesSection(
+              playerId: p.id,
+              source: p.source,
+              ratings: _scoutRatings.isNotEmpty ? _scoutRatings : p.scoutRatings,
             ),
+            const SizedBox(height: 20),
+            _buildScoutEvaluationCard(p),
             if (p.source == 'multivideo') ...[
               if (p.slotBreakdown.isNotEmpty) ...[
                 const SizedBox(height: 16),

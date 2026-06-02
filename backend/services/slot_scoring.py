@@ -347,35 +347,14 @@ def build_scout_report(
     ovr: int,
     breakdown: list[dict[str, Any]],
 ) -> str:
-    def _score(v: Any) -> int | None:
-        if isinstance(v, (int, float)):
-            return int(v)
-        try:
-            return int(float(str(v)))
-        except Exception:
-            return None
-
-    scores = [_score(r.get("score")) for r in breakdown]
-    scores = [s for s in scores if s is not None]
-    avg_score = round(sum(scores) / len(scores)) if scores else ovr
-    best = max(scores) if scores else ovr
-    lowest = min(scores) if scores else ovr
-    consistency = "istikrarlı"
-    if scores and (best - lowest) >= 20:
-        consistency = "dalgalı"
-
-    strengths, improvements = strengths_and_improvements(breakdown, top_n=2)
-
     lines = [
-        f"{name} ({position}) için 3 video birlikte değerlendirilmiştir. Genel OVR: {ovr}.",
+        f"{name} ({position}) için slot bazlı AI değerlendirmesi tamamlandı. Genel OVR: {ovr}.",
         "",
-        (
-            f"Genel performans ortalaması {avg_score}/100 seviyesinde ve profil {consistency} görünmektedir. "
-            f"En güçlü aksiyonlar: {', '.join([s.split(':')[0] for s in strengths[:2]])}."
-        ),
-        (
-            "Gelişim odağı olarak "
-            f"{', '.join([i.split(':')[0] for i in improvements[:2]])} öne çıkmaktadır."
-        ),
+        "Test bazlı özet:",
     ]
+    for r in breakdown:
+        lbl = r.get("label") or r.get("skill") or "Test"
+        sc = r.get("score")
+        obs = (r.get("observation") or "").strip()
+        lines.append(f"• {lbl}: {sc}/100. {obs}")
     return "\n".join(lines).strip()

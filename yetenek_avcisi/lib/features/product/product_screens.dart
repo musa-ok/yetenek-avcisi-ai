@@ -12,10 +12,12 @@ class ScoutNotesSection extends StatefulWidget {
     super.key,
     required this.playerId,
     this.source = 'multivideo',
+    this.ratings = const <ScoutRating>[],
   });
 
   final int playerId;
   final String source;
+  final List<ScoutRating> ratings;
 
   @override
   State<ScoutNotesSection> createState() => _ScoutNotesSectionState();
@@ -145,6 +147,100 @@ class _ScoutNotesSectionState extends State<ScoutNotesSection> {
             );
           },
         ),
+        const SizedBox(height: 12),
+        const Text(
+          'Scout Puanları',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (widget.ratings.isEmpty)
+          Text(
+            'Henüz bir scout değerlendirmesi yapılmadı',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+          )
+        else
+          Column(
+            children: widget.ratings
+                .map(
+                  (r) => Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _card,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  r.scoutName,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (r.isMine) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _green.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: _green.withValues(alpha: 0.4)),
+                                  ),
+                                  child: const Text(
+                                    'Sizin puanınız',
+                                    style: TextStyle(
+                                      color: _green,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _green.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star, color: _green, size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${r.score}',
+                                style: const TextStyle(
+                                  color: _green,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
         if (_isScout) ...[
           const SizedBox(height: 12),
           TextField(

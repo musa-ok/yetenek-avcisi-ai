@@ -269,4 +269,139 @@ class PushNotificationService {
   static Future<bool> refreshPushPreferenceForSettings() async {
     return loadEffectivePushEnabled();
   }
+
+  /// Push hattını uçtan uca test eder ve adım adım rapor döner.
+  static Future<PushDiagnosticsReport> runDiagnostics() async {
+    final steps = <PushDiagnosticsStep>[];
+
+    void addStep(String name, bool ok, String detail) {
+      steps.add(PushDiagnosticsStep(name: name, ok: ok, detail: detail));
+    }
+
+    final hasSession = currentAccessTokenNotifier.value != null &&
+        currentAccessTokenNotifier.value!.isNotEmpty;
+    addStep(
+      'Session',
+      hasSession,
+      hasSession ? 'Oturum token var' : 'Oturum token yok',
+    );
+    if (!hasSession) {
+      return PushDiagnosticsReport(
+        createdAt: DateTime.now(),
+        steps: steps,
+        summary: 'Önce giriş yapmalısın (auth token yok).',
+      );
+    }
+
+    final appSettingOn = await AppSettings.areNotificationsEnabled();
+    addStep(
+      'App toggle',
+      appSettingOn,
+      appSettingOn ? 'Uygulama içi bildirim açık' : 'Uygulama içi bildirim kapalı',
+    );
+
+    await initialize();
+    addStep(
+      'Firebase init',
+      _initialized,
+      _initialized ? 'Firebase Messaging hazır' : 'Firebase initialize başarısız',
+    );
+    if (!_initialized) {
+      return PushDiagnosticsReport(
+        createdAt: DateTime.now(),
+        steps: steps,
+        summary: 'Firebase initialize başarısız; iOS/Firebase konfigürasyonunu kontrol et.',
+      );
+    }
+
+    final messaging = FirebaseMessaging.instance;
+    final settings = await messaging.getNotificationSettings();
+    final status = settings.authorizationStatus;
+    final authorized = status == AuthorizationStatus.authorized ||
+        status == AuthorizationStatus.provisional;
+    addStep(
+      'OS permission',
+      authorized,
+      'authorizationStatus=$status',
+    );
+
+    final apns = await messaging.getAPNSToken();
+    addStep(
+      'APNS token',
+      apns != null && apns.isNotEmpty,
+      apns != null && apns.isNotEmpty ? 'APNS token var' : 'APNS token yok',
+    );
+
+    final fcm = await messaging.getToken();
+    addStep(
+      'FCM token',
+      fcm != null && fcm.isNotEmpty,
+      fcm != null && fcm.isNotEmpty ? 'FCM token var' : 'FCM token yok',
+    );
+
+    if (fcm != null && fcm.isNotEmpty) {
+      try {
+        await BackendApi.registerFcmToken(fcm);
+        addStep('Backend register', true, 'register-device çağrısı başarılı');
+      } catch (e) {
+        addStep('Backend register', false, 'register-device hata: $e');
+      }
+    } else {
+      addStep('Backend register', false, 'FCM token yok, register çağrılmadı');
+    }
+
+    try {
+      final statusMap = await BackendApi.fetchNotificationDeviceStatus();
+      final pushStatus = (statusMap['push_status'] ?? 0).toString();
+      addStep(
+        'Backend device-status',
+        pushStatus == '1',
+        'push_status=$pushStatus, has_device_token=${statusMap['has_device_token']}',
+      );
+    } catch (e) {
+      addStep('Backend device-status', false, 'device-status hata: $e');
+    }
+
+    final okCount = steps.where((s) => s.ok).length;
+    final summary = '$okCount/${steps.length} adım başarılı';
+    return PushDiagnosticsReport(
+      createdAt: DateTime.now(),
+      steps: steps,
+      summary: summary,
+    );
+  }
+}
+
+class PushDiagnosticsStep {
+  const PushDiagnosticsStep({
+    required this.name,
+    required this.ok,
+    required this.detail,
+  });
+
+  final String name;
+  final bool ok;
+  final String detail;
+}
+
+class PushDiagnosticsReport {
+  const PushDiagnosticsReport({
+    required this.createdAt,
+    required this.steps,
+    required this.summary,
+  });
+
+  final DateTime createdAt;
+  final List<PushDiagnosticsStep> steps;
+  final String summary;
+
+  String prettyText() {
+    final b = StringBuffer();
+    b.writeln('Push Diagnostics @ ${createdAt.toIso8601String()}');
+    b.writeln(summary);
+    for (final s in steps) {
+      b.writeln('${s.ok ? '[OK]' : '[FAIL]'} ${s.name}: ${s.detail}');
+    }
+    return b.toString().trimRight();
+  }
 }

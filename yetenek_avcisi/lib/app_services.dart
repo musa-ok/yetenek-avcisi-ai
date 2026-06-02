@@ -1526,6 +1526,19 @@ class BackendApi {
     }
   }
 
+  static Future<Map<String, dynamic>> fetchNotificationDeviceStatus() async {
+    final res = await ApiClient.get(
+      '/notifications/device-status',
+      authRequired: true,
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw _friendlyError(res);
+    }
+    final decoded = json.decode(res.body);
+    if (decoded is Map<String, dynamic>) return decoded;
+    return <String, dynamic>{'ok': false, 'message': 'unexpected response'};
+  }
+
   static Future<Map<String, dynamic>?> fetchMyMultivideoProfile() async {
     final res = await ApiClient.get('/me/multivideo-profile', authRequired: true);
     if (res.statusCode != 200) throw _friendlyError(res);
