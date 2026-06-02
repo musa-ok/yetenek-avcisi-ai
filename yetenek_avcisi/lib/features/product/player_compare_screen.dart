@@ -30,6 +30,8 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
   bool _loadingCandidates = false;
   String? _error;
   List<PlayerListItem> _candidatePool = const [];
+  Set<String> _mineKeys = const {};
+  bool _onlyMine = false;
 
   @override
   void initState() {
@@ -42,6 +44,30 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
   }
 
   String _playerKey(PlayerListItem p) => '${p.source}:${p.id}';
+  bool _isSameAnalysis(PlayerListItem x, PlayerListItem y) =>
+      _playerKey(x) == _playerKey(y);
+  DateTime _sortDate(PlayerListItem p) {
+    final raw = p.updatedAt;
+    if (raw == null || raw.trim().isEmpty) {
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+    return DateTime.tryParse(raw) ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  String _fmtDate(PlayerListItem p) {
+    final dt = _sortDate(p);
+    if (dt.millisecondsSinceEpoch == 0) return '-';
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    return '$d.$m.${dt.year}';
+  }
+
+  String _metaLine(PlayerListItem p) {
+    final ver = (p.analysisVersion == null || p.analysisVersion!.isEmpty)
+        ? '-'
+        : p.analysisVersion!;
+    return '${p.position} • AI OVR ${p.fifaCardOvr} • ${_fmtDate(p)} • $ver';
+  }
 
   Future<void> _loadOwnAnalysesForCompare() async {
     setState(() => _loadingCandidates = true);
@@ -77,7 +103,10 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
       for (final p in [..._candidatePool, ...mapped]) {
         merged[_playerKey(p)] = p;
       }
-      setState(() => _candidatePool = merged.values.toList());
+      setState(() {
+        _candidatePool = merged.values.toList();
+        _mineKeys = mapped.map(_playerKey).toSet();
+      });
     } catch (_) {
       // Compare ekranı, "kendi analizlerini ekleyemedik" hatasıyla bloklanmasın.
     } finally {
@@ -87,6 +116,9 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
 
   Future<void> _load() async {
     if (_b == null) return;
+    if (_isSameAnalysis(_a, _b!)) {
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -112,7 +144,7 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
       'id': p.id,
       'name': p.name,
       'position': p.position,
-      'ovr': p.overallRating,
+      'ovr': p.fifaCardOvr,
       // Seçilen analizin kendi altı skoru kullanılır.
       'skills': {
         'pac': clean(p.pac),
@@ -125,10 +157,13 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     };
   }
 
-  Future<void> _pickB() async {
-    final others = _candidatePool
-        .where((p) => _playerKey(p) != _playerKey(_a))
-        .toList();
+  Future<void> _pickFor({required bool sideA}) async {
+    final anchor = sideA ? _b : _a;
+    final others = _candidatePool.where((p) {
+      if (_onlyMine && !_mineKeys.contains(_playerKey(p))) return false;
+      if (anchor != null && _isSameAnalysis(p, anchor)) return false;
+      return true;
+    }).toList();
     if (others.isEmpty) return;
     final positions = [
       'Tümü',
@@ -154,7 +189,11 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
               return p.name.toLowerCase().contains(q) ||
                   p.position.toLowerCase().contains(q);
             }).toList()
-              ..sort((a, b) => b.overallRating.compareTo(a.overallRating));
+              ..sort((a, b) {
+                final byDate = _sortDate(b).compareTo(_sortDate(a));
+                if (byDate != 0) return byDate;
+                return b.id.compareTo(a.id);
+              });
 
             return SafeArea(
               child: Padding(
@@ -228,16 +267,35 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                                     style: const TextStyle(color: Colors.white),
                                   ),
                                   subtitle: Text(
-                                    '${p.position} • OVR ${p.overallRating}',
+                                    _metaLine(p),
                                     style: const TextStyle(color: Colors.white54),
                                   ),
-                                  trailing: p.userId == _a.userId
-                                      ? const Icon(
-                                          Icons.person,
-                                          color: _green,
-                                          size: 18,
+                                  trailing: _mineKeys.contains(_playerKey(p))
+                                      ? Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _green.withValues(alpha: 0.18),
+                                            borderRadius: BorderRadius.circular(999),
+                                          ),
+                                          child: const Text(
+                                            'Benim',
+                                            style: TextStyle(
+                                              color: _green,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
                                         )
-                                      : null,
+                                      : const Text(
+                                          'Genel',
+                                          style: TextStyle(
+                                            color: Colors.white38,
+                                            fontSize: 11,
+                                          ),
+                                        ),
                                   onTap: () => Navigator.pop(ctx, p),
                                 );
                               },
@@ -252,7 +310,13 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
       },
     );
     if (picked == null) return;
-    setState(() => _b = picked);
+    setState(() {
+      if (sideA) {
+        _a = picked;
+      } else {
+        _b = picked;
+      }
+    });
     _load();
   }
 
@@ -299,18 +363,50 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
         children: [
           Row(
             children: [
-              Expanded(child: _playerChip(_a.name, _green)),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _pickFor(sideA: true),
+                  child: _playerChip(
+                    _a.name,
+                    _metaLine(_a),
+                    _green,
+                  ),
+                ),
+              ),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Text('VS', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
               ),
               Expanded(
                 child: InkWell(
-                  onTap: _pickB,
-                  child: _playerChip(_b?.name ?? 'Oyuncu seç', Colors.orangeAccent),
+                  onTap: () => _pickFor(sideA: false),
+                  child: _playerChip(
+                    _b?.name ?? 'Oyuncu seç',
+                    _b == null ? 'Mevki • AI OVR • Tarih • Sürüm' : _metaLine(_b!),
+                    Colors.orangeAccent,
+                  ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilterChip(
+              selected: _onlyMine,
+              label: const Text('Sadece benim analizlerim'),
+              onSelected: (v) => setState(() => _onlyMine = v),
+              backgroundColor: Colors.white.withValues(alpha: 0.06),
+              selectedColor: _green.withValues(alpha: 0.2),
+              checkmarkColor: _green,
+              labelStyle: TextStyle(
+                color: _onlyMine ? _green : Colors.white70,
+                fontSize: 12,
+              ),
+              side: BorderSide(
+                color: _onlyMine ? _green.withValues(alpha: 0.45) : Colors.white24,
+              ),
+            ),
           ),
           if (_loadingCandidates)
             const Padding(
@@ -368,7 +464,7 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     );
   }
 
-  Widget _playerChip(String label, Color color) {
+  Widget _playerChip(String label, String meta, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
       decoration: BoxDecoration(
@@ -376,12 +472,25 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            meta,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white54, fontSize: 11),
+          ),
+        ],
       ),
     );
   }

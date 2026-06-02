@@ -170,6 +170,7 @@ class PlayerListItem {
     this.userId,
     this.slotBreakdown = const [],
     this.analysisVersion,
+    this.updatedAt,
     this.aiOvr,
     this.fifaOvr,
     this.communityOvr,
@@ -206,6 +207,7 @@ class PlayerListItem {
   final int? ovrDelta;
   final List<Map<String, dynamic>> slotBreakdown;
   final String? analysisVersion;
+  final String? updatedAt;
   final int? aiOvr;
   /// FIFA kartı — yalnızca AI analiz OVR (scout birleşimi yok).
   final int? fifaOvr;
@@ -346,6 +348,7 @@ class PlayerListItem {
           : const [],
       slotBreakdown: _parseSlotBreakdownMap(m),
       analysisVersion: _readOptionalString(m, 'analysis_version', 'analysisVersion'),
+      updatedAt: _readOptionalString(m, 'updated_at', 'updatedAt', 'created_at', 'createdAt'),
       aiOvr: _readCombinedInt(m, const ['ai_ovr', 'aiOvr']),
       fifaOvr: _readCombinedInt(m, const ['fifa_ovr', 'fifaOvr', 'ai_ovr', 'aiOvr']),
       communityOvr: _readCombinedInt(m, const ['community_ovr', 'communityOvr']),
