@@ -178,16 +178,11 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
 
   Future<void> _pickFor({required bool sideA}) async {
     final anchor = sideA ? _b : _a;
-    final onlyMine = sideA ? _onlyMineA : _onlyMineB;
-    final others = _candidatePool.where((p) {
-      if (onlyMine && !_mineKeys.contains(_playerKey(p))) return false;
-      return true;
-    }).toList();
-    if (others.isEmpty) return;
+    bool modalOnlyMine = sideA ? _onlyMineA : _onlyMineB;
     final positions = [
       'Tümü',
       ...{
-        for (final p in others)
+        for (final p in _candidatePool)
           if (p.position.trim().isNotEmpty) p.position.trim(),
       },
     ];
@@ -199,7 +194,10 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
         String selectedPosition = 'Tümü';
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            final filtered = others.where((p) {
+            final filtered = _candidatePool.where((p) {
+              if (modalOnlyMine && !_mineKeys.contains(_playerKey(p))) {
+                return false;
+              }
               final byPosition = selectedPosition == 'Tümü' ||
                   p.position.trim() == selectedPosition;
               if (!byPosition) return false;
@@ -269,9 +267,10 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: FilterChip(
-                        selected: onlyMine,
+                        selected: modalOnlyMine,
                         label: const Text('Sadece benim analizlerim'),
                         onSelected: (v) => setModalState(() {
+                          modalOnlyMine = v;
                           if (sideA) {
                             _onlyMineA = v;
                           } else {
@@ -282,11 +281,11 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                         selectedColor: _green.withValues(alpha: 0.2),
                         checkmarkColor: _green,
                         labelStyle: TextStyle(
-                          color: onlyMine ? _green : Colors.white70,
+                          color: modalOnlyMine ? _green : Colors.white70,
                           fontSize: 12,
                         ),
                         side: BorderSide(
-                          color: onlyMine
+                          color: modalOnlyMine
                               ? _green.withValues(alpha: 0.45)
                               : Colors.white24,
                         ),
