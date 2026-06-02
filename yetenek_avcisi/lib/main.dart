@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
 import 'dart:io';
@@ -3757,7 +3756,6 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
   bool _mobileUploadAllowed = false;
   bool _loading = true;
   bool _saving = false;
-  bool _runningDiagnostics = false;
   String? _loadError;
 
   @override
@@ -3848,56 +3846,6 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
     }
   }
 
-  Future<void> _runPushDiagnostics() async {
-    if (_runningDiagnostics) return;
-    setState(() => _runningDiagnostics = true);
-    try {
-      final report = await PushNotificationService.runDiagnostics();
-      if (!mounted) return;
-      final text = report.prettyText();
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: kElevatedCard,
-          title: const Text(
-            'Push Tanı Raporu',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-          ),
-          content: SingleChildScrollView(
-            child: SelectableText(
-              text,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                height: 1.4,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: text));
-                if (ctx.mounted) Navigator.of(ctx).pop();
-                _showSettingsSnack('Tanı raporu kopyalandı');
-              },
-              child: const Text('Kopyala', style: TextStyle(color: kPitchGreen)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Kapat', style: TextStyle(color: Colors.white70)),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      _showSettingsSnack('Tanı raporu alınamadı: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _runningDiagnostics = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = L10nScope.of(context);
@@ -3967,28 +3915,6 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
                     activeThumbColor: kPitchGreen,
                     activeTrackColor: kPitchGreen.withValues(alpha: 0.45),
                     onChanged: _onMobileUploadChanged,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _SettingsCard(
-                  title: 'Push Tanı Testi',
-                  subtitle: 'İzin, APNS, FCM ve backend 0/1 durumunu kontrol eder',
-                  trailing: OutlinedButton(
-                    onPressed: _runningDiagnostics ? null : _runPushDiagnostics,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: kPitchGreen,
-                      side: const BorderSide(color: kPitchGreen),
-                    ),
-                    child: _runningDiagnostics
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: kPitchGreen,
-                            ),
-                          )
-                        : const Text('Çalıştır'),
                   ),
                 ),
               ],

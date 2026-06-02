@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:yetenek_avcisi/app_services.dart';
+import 'package:yetenek_avcisi/services/multi_upload_service.dart';
 
 const _card = Color(0xFF151C2B);
 const _green = Color(0xFF00FF87);
@@ -26,14 +27,62 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
   PlayerListItem? _b;
   Map<String, dynamic>? _data;
   bool _loading = false;
+  bool _loadingCandidates = false;
   String? _error;
+  List<PlayerListItem> _candidatePool = const [];
 
   @override
   void initState() {
     super.initState();
     _a = widget.playerA;
     _b = widget.playerB;
+    _candidatePool = List<PlayerListItem>.from(widget.allPlayers);
+    _loadOwnAnalysesForCompare();
     if (_b != null) _load();
+  }
+
+  String _playerKey(PlayerListItem p) => '${p.source}:${p.id}';
+
+  Future<void> _loadOwnAnalysesForCompare() async {
+    setState(() => _loadingCandidates = true);
+    try {
+      final mine = await MultiUploadService.listMyAnalyses();
+      if (!mounted) return;
+      final mapped = mine
+          .where((p) => p.isComplete)
+          .map(
+            (p) => PlayerListItem.fromJson({
+              'id': p.id,
+              'user_id': p.userId,
+              'name': p.name,
+              'age': p.age,
+              'position': p.position,
+              'overall_rating': p.overallRating,
+              'ai_scout_report': p.aiSummaryReport,
+              'source': 'multivideo',
+              'slot_breakdown': p.slotBreakdown,
+              'analysis_version': p.analysisVersion,
+              'pace': p.pace,
+              'finishing': p.finishing,
+              'passing': p.passing,
+              'dribbling': p.dribbling,
+              'defending': p.defending,
+              'strength': p.strength,
+              'updated_at': p.updatedAt,
+            }),
+          )
+          .toList();
+
+      final merged = <String, PlayerListItem>{};
+      for (final p in [..._candidatePool, ...mapped]) {
+        merged[_playerKey(p)] = p;
+      }
+      setState(() => _candidatePool = merged.values.toList());
+    } catch (_) {
+      // Compare ekranı, "kendi analizlerini ekleyemedik" hatasıyla bloklanmasın.
+    } finally {
+      if (mounted) setState(() => _loadingCandidates = false);
+    }
   }
 
   Future<void> _load() async {
@@ -43,7 +92,10 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
       _error = null;
     });
     try {
-      final data = await BackendApi.comparePlayers(_a.id, _b!.id);
+      final data = {
+        'player_a': _toCompareSide(_a),
+        'player_b': _toCompareSide(_b!),
+      };
       if (!mounted) return;
       setState(() => _data = data);
     } catch (e) {
@@ -54,24 +106,148 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     }
   }
 
+  Map<String, dynamic> _toCompareSide(PlayerListItem p) {
+    int? clean(int? v) => (v != null && v > 0) ? v : null;
+    return {
+      'id': p.id,
+      'name': p.name,
+      'position': p.position,
+      'ovr': p.overallRating,
+      // Seçilen analizin kendi altı skoru kullanılır.
+      'skills': {
+        'pac': clean(p.pac),
+        'sho': clean(p.sho),
+        'pas': clean(p.pas),
+        'dri': clean(p.dri),
+        'def': clean(p.def),
+        'phy': clean(p.phy),
+      },
+    };
+  }
+
   Future<void> _pickB() async {
-    final others = widget.allPlayers.where((p) => p.id != _a.id).toList();
+    final others = _candidatePool
+        .where((p) => _playerKey(p) != _playerKey(_a))
+        .toList();
     if (others.isEmpty) return;
+    final positions = [
+      'Tümü',
+      ...{
+        for (final p in others)
+          if (p.position.trim().isNotEmpty) p.position.trim(),
+      },
+    ];
     final picked = await showModalBottomSheet<PlayerListItem>(
       context: context,
       backgroundColor: const Color(0xFF101828),
       builder: (ctx) {
-        return ListView(
-          children: others
-              .map(
-                (p) => ListTile(
-                  title: Text(p.name, style: const TextStyle(color: Colors.white)),
-                  subtitle: Text('${p.position} • OVR ${p.overallRating}',
-                      style: const TextStyle(color: Colors.white54)),
-                  onTap: () => Navigator.pop(ctx, p),
+        String query = '';
+        String selectedPosition = 'Tümü';
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final filtered = others.where((p) {
+              final byPosition = selectedPosition == 'Tümü' ||
+                  p.position.trim() == selectedPosition;
+              if (!byPosition) return false;
+              if (query.trim().isEmpty) return true;
+              final q = query.toLowerCase();
+              return p.name.toLowerCase().contains(q) ||
+                  p.position.toLowerCase().contains(q);
+            }).toList()
+              ..sort((a, b) => b.overallRating.compareTo(a.overallRating));
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      onChanged: (v) => setModalState(() => query = v),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Oyuncu ara...',
+                        hintStyle: const TextStyle(color: Colors.white54),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Colors.white54,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.06),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: selectedPosition,
+                      dropdownColor: const Color(0xFF101828),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Mevki',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.06),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      items: positions
+                          .map(
+                            (pos) => DropdownMenuItem<String>(
+                              value: pos,
+                              child: Text(pos),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setModalState(
+                        () => selectedPosition = v ?? 'Tümü',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: filtered.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Text(
+                                'Sonuç bulunamadı',
+                                style: TextStyle(color: Colors.white54),
+                              ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              itemBuilder: (_, i) {
+                                final p = filtered[i];
+                                return ListTile(
+                                  title: Text(
+                                    p.name,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  subtitle: Text(
+                                    '${p.position} • OVR ${p.overallRating}',
+                                    style: const TextStyle(color: Colors.white54),
+                                  ),
+                                  trailing: p.userId == _a.userId
+                                      ? const Icon(
+                                          Icons.person,
+                                          color: _green,
+                                          size: 18,
+                                        )
+                                      : null,
+                                  onTap: () => Navigator.pop(ctx, p),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 ),
-              )
-              .toList(),
+              ),
+            );
+          },
         );
       },
     );
@@ -136,6 +312,11 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
               ),
             ],
           ),
+          if (_loadingCandidates)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: LinearProgressIndicator(color: _green, minHeight: 2),
+            ),
           const SizedBox(height: 20),
           if (_loading) const Center(child: CircularProgressIndicator(color: _green)),
           if (_error != null)
