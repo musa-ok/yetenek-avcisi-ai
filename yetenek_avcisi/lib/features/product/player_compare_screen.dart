@@ -44,8 +44,7 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
   }
 
   String _playerKey(PlayerListItem p) => '${p.source}:${p.id}';
-  bool _isSameAnalysis(PlayerListItem x, PlayerListItem y) =>
-      _playerKey(x) == _playerKey(y);
+  bool _isSameAnalysis(PlayerListItem x, PlayerListItem y) => x.id == y.id;
   DateTime _sortDate(PlayerListItem p) {
     final raw = p.updatedAt;
     if (raw == null || raw.trim().isEmpty) {
@@ -62,12 +61,8 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     return '$d.$m.${dt.year}';
   }
 
-  String _metaLine(PlayerListItem p) {
-    final ver = (p.analysisVersion == null || p.analysisVersion!.isEmpty)
-        ? '-'
-        : p.analysisVersion!;
-    return '${p.position} • AI OVR ${p.fifaCardOvr} • ${_fmtDate(p)} • $ver';
-  }
+  String _metaLine(PlayerListItem p) =>
+      '${p.position} • AI OVR ${p.fifaCardOvr} • ${_fmtDate(p)}';
 
   Future<void> _loadOwnAnalysesForCompare() async {
     setState(() => _loadingCandidates = true);
@@ -117,6 +112,13 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
   Future<void> _load() async {
     if (_b == null) return;
     if (_isSameAnalysis(_a, _b!)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Aynı analiz seçilemez. Lütfen farklı bir analiz seç.'),
+          ),
+        );
+      }
       return;
     }
     setState(() {
@@ -140,6 +142,22 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
 
   Map<String, dynamic> _toCompareSide(PlayerListItem p) {
     int? clean(int? v) => (v != null && v > 0) ? v : null;
+    int? fromBreakdown(String attr) {
+      final rows = p.slotBreakdown
+          .where((r) => '${r['attribute'] ?? ''}' == attr)
+          .toList();
+      if (rows.isEmpty) return null;
+      final values = <int>[];
+      for (final r in rows) {
+        final raw = r['score'];
+        if (raw is int && raw > 0) values.add(raw);
+        if (raw is num && raw > 0) values.add(raw.toInt());
+      }
+      if (values.isEmpty) return null;
+      final avg = values.reduce((a, b) => a + b) / values.length;
+      return avg.round();
+    }
+    int? score(int? primary, String attr) => clean(primary) ?? fromBreakdown(attr);
     return {
       'id': p.id,
       'name': p.name,
@@ -147,12 +165,12 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
       'ovr': p.fifaCardOvr,
       // Seçilen analizin kendi altı skoru kullanılır.
       'skills': {
-        'pac': clean(p.pac),
-        'sho': clean(p.sho),
-        'pas': clean(p.pas),
-        'dri': clean(p.dri),
-        'def': clean(p.def),
-        'phy': clean(p.phy),
+        'pac': score(p.pac, 'pace'),
+        'sho': score(p.sho, 'finishing'),
+        'pas': score(p.pas, 'passing'),
+        'dri': score(p.dri, 'dribbling'),
+        'def': score(p.def, 'defending'),
+        'phy': score(p.phy, 'strength'),
       },
     };
   }
@@ -161,7 +179,6 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     final anchor = sideA ? _b : _a;
     final others = _candidatePool.where((p) {
       if (_onlyMine && !_mineKeys.contains(_playerKey(p))) return false;
-      if (anchor != null && _isSameAnalysis(p, anchor)) return false;
       return true;
     }).toList();
     if (others.isEmpty) return;
@@ -247,6 +264,27 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilterChip(
+                        selected: _onlyMine,
+                        label: const Text('Sadece benim analizlerim'),
+                        onSelected: (v) => setModalState(() => _onlyMine = v),
+                        backgroundColor: Colors.white.withValues(alpha: 0.06),
+                        selectedColor: _green.withValues(alpha: 0.2),
+                        checkmarkColor: _green,
+                        labelStyle: TextStyle(
+                          color: _onlyMine ? _green : Colors.white70,
+                          fontSize: 12,
+                        ),
+                        side: BorderSide(
+                          color: _onlyMine
+                              ? _green.withValues(alpha: 0.45)
+                              : Colors.white24,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     Flexible(
                       child: filtered.isEmpty
                           ? const Padding(
@@ -296,7 +334,20 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                                             fontSize: 11,
                                           ),
                                         ),
-                                  onTap: () => Navigator.pop(ctx, p),
+                                  onTap: () {
+                                    if (anchor != null &&
+                                        _isSameAnalysis(p, anchor)) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Aynı analiz seçilemez. Lütfen farklı bir analiz seç.',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    Navigator.pop(ctx, p);
+                                  },
                                 );
                               },
                             ),
