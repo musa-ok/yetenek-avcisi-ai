@@ -104,8 +104,34 @@ class PushNotificationService {
     if (!_initialized) return;
 
     try {
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token == null || token.isEmpty) return;
+      final messaging = FirebaseMessaging.instance;
+      var settings = await messaging.getNotificationSettings();
+      if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
+        settings = await messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      }
+      final authorized = settings.authorizationStatus ==
+              AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+      if (!authorized) {
+        debugPrint('[FCM] izin yok, token senkronu atlandi');
+        return;
+      }
+
+      var token = await messaging.getToken();
+      if (token == null || token.isEmpty) {
+        // iOS tarafinda APNS gec geldiginde ilk deneme null donuyor.
+        await Future<void>.delayed(const Duration(milliseconds: 800));
+        token = await messaging.getToken();
+      }
+      if (token == null || token.isEmpty) {
+        final apns = await messaging.getAPNSToken();
+        debugPrint('[FCM] token yok (apns=${apns != null && apns.isNotEmpty})');
+        return;
+      }
       await BackendApi.registerFcmToken(token);
       debugPrint('[FCM] token backend\'e kaydedildi');
     } catch (e) {
