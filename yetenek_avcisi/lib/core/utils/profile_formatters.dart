@@ -12,6 +12,14 @@ String stripAnalysisDisclaimer(String? text) {
   if (idx >= 0) {
     s = s.substring(0, idx).trimRight();
   }
+  // Slot raporlarinda test detaylarini Scout Notu'ndan ayir:
+  // detaylar alttaki "Test Bazli Puanlar" kartinda gosterilir.
+  final testIdx = s.indexOf('\nTest bazlı özet:');
+  if (testIdx >= 0) {
+    s = s.substring(0, testIdx).trimRight();
+  } else if (s.startsWith('Test bazlı özet:')) {
+    s = '';
+  }
   final lines = s.split('\n');
   while (lines.isNotEmpty &&
       lines.last.trim().startsWith('Not: Koşu süreleri')) {

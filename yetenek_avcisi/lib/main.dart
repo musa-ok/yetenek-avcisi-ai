@@ -6456,7 +6456,8 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     );
   }
 
-  Widget _buildScoutRatingsCard(List<ScoutRating> ratings) {
+  Widget _buildScoutEvaluationCard(PlayerListItem p, List<ScoutRating> ratings) {
+    final report = (p.aiScoutReport ?? '').trim();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -6470,10 +6471,10 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.star_rounded, color: kPitchGreen, size: 20),
+              Icon(Icons.psychology_alt_outlined, color: kPitchGreen, size: 20),
               const SizedBox(width: 8),
-              Text(
-                'Scout Değerlendirmeleri',
+              const Text(
+                'Scout Değerlendirmesi',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -6483,6 +6484,35 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          Text(
+            L10nScope.of(context).scoutNote,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.92),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            report.isNotEmpty ? report : L10nScope.of(context).reportNotReady,
+            style: const TextStyle(
+              color: Colors.white70,
+              height: 1.5,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+          const SizedBox(height: 12),
+          const Text(
+            'Scout Puanları',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
           if (ratings.isEmpty)
             Text(
               'Henüz bir scout değerlendirmesi yapılmadı',
@@ -6837,30 +6867,9 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
             const SizedBox(height: 16),
             ScoutNotesSection(playerId: p.id, source: p.source),
             const SizedBox(height: 20),
-            Text(
-              L10nScope.of(context).scoutNote,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: kElevatedCard,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Text(
-                p.aiScoutReport ?? L10nScope.of(context).reportNotReady,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  height: 1.5,
-                  fontSize: 15,
-                ),
-              ),
+            _buildScoutEvaluationCard(
+              p,
+              _scoutRatings.isNotEmpty ? _scoutRatings : p.scoutRatings,
             ),
             if (p.source == 'multivideo') ...[
               if (p.slotBreakdown.isNotEmpty) ...[
@@ -6870,9 +6879,6 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
               const SizedBox(height: 16),
               SmartSummaryCard(playerId: p.id),
             ],
-            const SizedBox(height: 20),
-            // Scout Değerlendirmeleri kartı
-            _buildScoutRatingsCard(_scoutRatings.isNotEmpty ? _scoutRatings : p.scoutRatings),
             const SizedBox(height: 24),
             GestureDetector(
               onTap: () {

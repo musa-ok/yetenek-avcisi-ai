@@ -3,6 +3,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:yetenek_avcisi/app_services.dart';
 import 'package:yetenek_avcisi/core/settings/app_settings.dart';
 import 'package:yetenek_avcisi/features/product/product_screens.dart';
@@ -87,6 +88,18 @@ class PushNotificationService {
     );
   }
 
+  static Future<void> _openSystemNotificationSettings() async {
+    if (kIsWeb) return;
+    try {
+      final ok = await launchUrl(Uri.parse('app-settings:'));
+      if (!ok) {
+        debugPrint('[FCM] app-settings acilamadi');
+      }
+    } catch (e) {
+      debugPrint('[FCM] app-settings hatasi: $e');
+    }
+  }
+
   static Future<String?> _awaitApnsToken(
     FirebaseMessaging messaging, {
     int attempts = 8,
@@ -129,6 +142,8 @@ class PushNotificationService {
               AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
       if (!authorized) {
+        await AppSettings.setNotificationsEnabled(false);
+        await _clearDeviceAndBackendToken();
         debugPrint('[FCM] izin yok, token senkronu atlandi');
         return;
       }
@@ -146,6 +161,7 @@ class PushNotificationService {
       if (token == null || token.isEmpty) {
         final apns = await messaging.getAPNSToken();
         debugPrint('[FCM] token yok (apns=${apns != null && apns.isNotEmpty})');
+        await _clearDeviceAndBackendToken();
         return;
       }
       await BackendApi.registerFcmToken(token);
@@ -203,6 +219,7 @@ class PushNotificationService {
     if (!authorized) {
       await AppSettings.setNotificationsEnabled(false);
       await _clearDeviceAndBackendToken();
+      await _openSystemNotificationSettings();
       throw StateError(
         'Sistem bildirim izni verilmedi. iPhone Ayarlar → Scoutiq → Bildirimler bölümünden açın.',
       );

@@ -530,7 +530,8 @@ def register_fcm_token(
     db.commit()
     from config import FCM_ENABLED
 
-    if current_user.fcm_device_token:
+    has_device_token = 1 if current_user.fcm_device_token else 0
+    if has_device_token:
         msg = (
             "FCM token kaydedildi."
             if FCM_ENABLED
@@ -539,4 +540,26 @@ def register_fcm_token(
     else:
         msg = "FCM token kaldirildi."
 
-    return {"ok": True, "fcm_enabled": FCM_ENABLED, "message": msg}
+    return {
+        "ok": True,
+        "fcm_enabled": FCM_ENABLED,
+        "has_device_token": has_device_token,
+        "push_status": has_device_token,
+        "message": msg,
+    }
+
+
+@router.get("/notifications/device-status")
+def get_device_notification_status(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    has_device_token = 1 if (current_user.fcm_device_token or "").strip() else 0
+    from config import FCM_ENABLED
+
+    return {
+        "ok": True,
+        "fcm_enabled": 1 if FCM_ENABLED else 0,
+        "has_device_token": has_device_token,
+        "push_status": has_device_token,
+    }
