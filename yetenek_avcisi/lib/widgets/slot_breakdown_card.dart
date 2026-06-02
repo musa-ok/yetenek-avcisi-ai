@@ -6,9 +6,13 @@ class SlotBreakdownCard extends StatefulWidget {
   const SlotBreakdownCard({
     super.key,
     required this.breakdown,
+    this.embedded = false,
+    this.showHeader = true,
   });
 
   final List<Map<String, dynamic>> breakdown;
+  final bool embedded;
+  final bool showHeader;
 
   @override
   State<SlotBreakdownCard> createState() => _SlotBreakdownCardState();
@@ -21,17 +25,10 @@ class _SlotBreakdownCardState extends State<SlotBreakdownCard> {
   Widget build(BuildContext context) {
     if (widget.breakdown.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.glassBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.showHeader) ...[
           Row(
             children: [
               Icon(Icons.fact_check_outlined, color: AppColors.primary, size: 22),
@@ -58,11 +55,26 @@ class _SlotBreakdownCardState extends State<SlotBreakdownCard> {
             ),
           ),
           const SizedBox(height: 12),
-          ...widget.breakdown.asMap().entries.map(
-                (e) => _buildRow(e.key, e.value),
-              ),
         ],
+        ...widget.breakdown.asMap().entries.map(
+              (e) => _buildRow(e.key, e.value),
+            ),
+      ],
+    );
+
+    if (widget.embedded) {
+      return content;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.glassBorder),
       ),
+      child: content,
     );
   }
 

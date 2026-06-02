@@ -4,16 +4,13 @@ import 'dart:ui' as ui;
 import 'package:yetenek_avcisi/core/constants/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:percent_indicator/percent_indicator.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import '../app_theme.dart';
 import '../services/multi_upload_service.dart';
 import '../core/utils/fifa_six_stats.dart';
 import '../widgets/analysis_finalize_dialog.dart';
-import '../widgets/smart_summary_card.dart';
 import '../widgets/slot_breakdown_card.dart';
 import 'fullscreen_multi_video_player.dart'; 
 
@@ -287,15 +284,10 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
               _buildVideoAnalysis(context),
               
               SizedBox(height: 24),
-              if (p.slotBreakdown.isNotEmpty)
-                SlotBreakdownCard(breakdown: p.slotBreakdown),
-              if (p.slotBreakdown.isNotEmpty) SizedBox(height: 16),
-              SmartSummaryCard(playerId: p.id),
-              
-              SizedBox(height: 32),
-              if (p.aiSummaryReport != null && p.aiSummaryReport!.isNotEmpty)
-                _buildAIReport(context)
-              else if (p.isComplete)
+              _buildScoutEvaluationSection(context),
+              SizedBox(height: 24),
+              if ((p.aiSummaryReport == null || p.aiSummaryReport!.isEmpty) &&
+                  p.isComplete)
                 _buildStartAnalysisButton(context),
               
               SizedBox(height: 32),
@@ -303,6 +295,92 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildScoutEvaluationSection(BuildContext context) {
+    final hasComment =
+        _player.aiSummaryReport != null && _player.aiSummaryReport!.isNotEmpty;
+    final hasScores = _player.slotBreakdown.isNotEmpty;
+    if (!hasComment && !hasScores) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.psychology_alt_outlined, color: AppColors.primary, size: 22),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Scout Değerlendirmesi',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '3 videonun genel değerlendirmesi ve test bazlı scout puanları.',
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 12,
+              height: 1.35,
+            ),
+          ),
+          if (hasComment) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Scout Yorumu',
+              style: TextStyle(
+                color: AppColors.accentPurple.withOpacity(0.9),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _player.aiSummaryReport!,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                height: 1.5,
+                fontSize: 13,
+              ),
+            ),
+          ],
+          if (hasScores) ...[
+            const SizedBox(height: 14),
+            Divider(color: Colors.white.withOpacity(0.08), height: 1),
+            const SizedBox(height: 14),
+            const Text(
+              'Scout Puanları',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SlotBreakdownCard(
+              breakdown: _player.slotBreakdown,
+              embedded: true,
+              showHeader: false,
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -420,7 +498,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
                 final s = skills[index];
                 final int? val = hasAnalysis ? s['value'] as int? : null;
                 final bool hasVal = val != null && val > 0;
-                final color = hasVal ? _getScoreColor(val!) : Colors.grey;
+                final color = hasVal ? _getScoreColor(val) : Colors.grey;
                 return Container(
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.3),
@@ -535,23 +613,6 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
         Text('$score', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
         SizedBox(width: 8),
         Icon(Icons.play_circle_outline, color: Color(0xFF00E676), size: 18),
-      ]),
-    );
-  }
-
-  Widget _buildAIReport(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(20),
-      // 🚨 BURASI DÜZELTİLDİ: Colors.black24 yerine Colors.black.withOpacity(0.24)
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.24), 
-        borderRadius: BorderRadius.circular(16), 
-        border: Border.all(color: AppColors.accentPurple.withOpacity(0.3))
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(Icons.psychology, color: AppColors.accentPurple), SizedBox(width: 8), Text('AI Scout Analizi', style: TextStyle(color: AppColors.accentPurple, fontWeight: FontWeight.bold))]),
-        SizedBox(height: 12),
-        Text(_player.aiSummaryReport!, style: TextStyle(height: 1.5, fontSize: 13, color: Colors.white)),
       ]),
     );
   }
