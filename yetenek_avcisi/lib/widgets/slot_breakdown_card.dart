@@ -96,7 +96,8 @@ class _SlotBreakdownCardState extends State<SlotBreakdownCard> {
       scoreColor = const Color(0xFFEF5350);
     }
 
-    final String? sub = attr.isNotEmpty ? _attrLabel(attr) : null;
+    final String? sub = attr.isNotEmpty ? _subLabelForRow(attr, label) : null;
+    final previewObs = _previewObservation(obs);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -179,9 +180,7 @@ class _SlotBreakdownCardState extends State<SlotBreakdownCard> {
                 if (obs.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(
-                    obs,
-                    maxLines: expanded ? null : 2,
-                    overflow: expanded ? null : TextOverflow.ellipsis,
+                    expanded ? obs : previewObs,
                     style: TextStyle(
                       color: AppColors.textSecondary.withValues(alpha: 0.85),
                       fontSize: 12,
@@ -207,6 +206,48 @@ class _SlotBreakdownCardState extends State<SlotBreakdownCard> {
         ),
       ),
     );
+  }
+
+  String _subLabelForRow(String attr, String label) {
+    final low = label.toLowerCase();
+    if (attr == 'technical_ability') {
+      if (low.contains('kaleci') ||
+          low.contains('refleks') ||
+          low.contains('top tutma')) {
+        return '→ Kalecilik';
+      }
+      if (low.contains('ilk kontrol') ||
+          low.contains('dar alanda') ||
+          low.contains('top sür') ||
+          low.contains('dripling')) {
+        return '→ Top Kontrolü';
+      }
+      return '→ Teknik';
+    }
+    if (attr == 'tactical_awareness') {
+      if (low.contains('pozisyon') || low.contains('markaj')) {
+        return '→ Pozisyon Bilgisi';
+      }
+      if (low.contains('oyun görüş') || low.contains('yaratıc')) {
+        return '→ Oyun Görüşü';
+      }
+      return '→ Taktik';
+    }
+    if (attr == 'physical_attributes') {
+      if (low.contains('koşu') || low.contains('sprint')) {
+        return '→ Dayanıklılık / Tempo';
+      }
+      return '→ Atletizm';
+    }
+    return _attrLabel(attr);
+  }
+
+  String _previewObservation(String obs, {int maxChars = 150}) {
+    if (obs.length <= maxChars) return obs;
+    final cut = obs.substring(0, maxChars);
+    final lastSpace = cut.lastIndexOf(' ');
+    final safe = (lastSpace > 30 ? cut.substring(0, lastSpace) : cut).trimRight();
+    return '$safe…';
   }
 
   String _attrLabel(String attr) {

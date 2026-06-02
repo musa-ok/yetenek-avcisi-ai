@@ -324,13 +324,13 @@ def strengths_and_improvements(
 ) -> tuple[list[str], list[str]]:
     sorted_rows = sorted(breakdown, key=lambda x: x.get("score") or 0, reverse=True)
     strengths = [
-        f"{r.get('label', r.get('skill', 'Test'))}: {r.get('score')}/100 — {r.get('observation', '')[:120]}"
+        f"{r.get('label', r.get('skill', 'Test'))}: {r.get('score')}/100 — {str(r.get('observation') or '').strip()}"
         for r in sorted_rows[:top_n]
         if (r.get("score") or 0) >= 65
     ]
     weak = sorted(breakdown, key=lambda x: x.get("score") or 0)
     improvements = [
-        f"{r.get('label', r.get('skill', 'Test'))}: {r.get('score')}/100 — gelişim: {r.get('observation', '')[:100]}"
+        f"{r.get('label', r.get('skill', 'Test'))}: {r.get('score')}/100 — gelişim: {str(r.get('observation') or '').strip()}"
         for r in weak[:top_n]
         if (r.get("score") or 0) < 75
     ]
@@ -370,8 +370,6 @@ def build_scout_report(
     improve_topics = ", ".join([i.split(":")[0] for i in improvements[:2]]) or "karar sürekliliği"
 
     evidence = " ".join(observations[:3]).strip()
-    if len(evidence) > 420:
-        evidence = f"{evidence[:420].rstrip()}..."
     if not evidence:
         evidence = (
             "Video sekanslarında teknik uygulama, tempo yönetimi ve karar kalitesi birlikte değerlendirildi."
