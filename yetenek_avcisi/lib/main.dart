@@ -2061,6 +2061,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  int? _myRequiredVideoCount;
 
   @override
   void initState() {
@@ -2083,14 +2084,18 @@ class _MainScreenState extends State<MainScreen> {
     final user = currentUserNotifier.value;
     if (user?.role != 'Futbolcu') {
       myAnalysisSessionCountNotifier.value = 0;
+      if (mounted) setState(() => _myRequiredVideoCount = null);
       return;
     }
     try {
       final mine = await MultiUploadService.listMyAnalyses();
       myAnalysisSessionCountNotifier.value = mine.length;
       homeMergedStatsNotifier.value = buildMergedLatestSixStats(mine);
+      final count = mine.isNotEmpty ? mine.first.requiredVideoCount : null;
+      if (mounted) setState(() => _myRequiredVideoCount = count);
     } catch (_) {
       myAnalysisSessionCountNotifier.value = 0;
+      if (mounted) setState(() => _myRequiredVideoCount = null);
     }
   }
 
@@ -2126,37 +2131,33 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           floatingActionButton: user.role == 'Futbolcu'
-              ? ListenableBuilder(
-                  listenable: myAnalysisSessionCountNotifier,
-                  builder: (context, _) {
-                    final hasSessions = myAnalysisSessionCountNotifier.value > 0;
-                    return FloatingActionButton.extended(
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                MultiUploadScreen(key: UniqueKey(), forceNew: true),
-                          ),
-                        );
-                        _refreshPlayerSessionCount();
-                      },
-                      backgroundColor: AppColors.accentGreen,
-                      elevation: 0,
-                      icon: const Icon(
-                        Icons.video_library,
-                        color: Color(0xFF0B0F19),
-                      ),
-                      label: Text(
-                        hasSessions ? l.fabImproveScore : l.fabStartAnalysis,
-                        style: const TextStyle(
-                          color: Color(0xFF0B0F19),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                        ),
+              ? FloatingActionButton.extended(
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            MultiUploadScreen(key: UniqueKey(), forceNew: true),
                       ),
                     );
+                    _refreshPlayerSessionCount();
                   },
+                  backgroundColor: AppColors.accentGreen,
+                  elevation: 0,
+                  icon: const Icon(
+                    Icons.video_library,
+                    color: Color(0xFF0B0F19),
+                  ),
+                  label: Text(
+                    _myRequiredVideoCount != null && _myRequiredVideoCount! > 0
+                        ? l.fabUploadVideos(_myRequiredVideoCount!)
+                        : l.fabUpload,
+                    style: const TextStyle(
+                      color: Color(0xFF0B0F19),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
                 )
               : null,
           floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,

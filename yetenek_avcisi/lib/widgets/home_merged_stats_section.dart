@@ -31,6 +31,7 @@ class HomeMergedStatsSection extends StatefulWidget {
 
 class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
   final GlobalKey _shareKey = GlobalKey();
+  final GlobalKey _shareAnchorKey = GlobalKey();
   bool _sharing = false;
 
   Future<void> _shareStats() async {
@@ -73,6 +74,7 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
         [XFile(file.path, mimeType: 'image/png')],
         text: lines.join('\n'),
         context: context,
+        anchorKey: _shareAnchorKey,
       );
     } catch (e) {
       messenger?.showSnackBar(
@@ -115,6 +117,7 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
               ),
             ),
             IconButton(
+              key: _shareAnchorKey,
               tooltip: lab.shareStats,
               onPressed: _sharing ? null : _shareStats,
               icon: _sharing
