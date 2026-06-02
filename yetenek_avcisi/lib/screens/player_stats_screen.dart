@@ -278,13 +278,12 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
               ),
               
               SizedBox(height: 24),
+              _buildScoutEvaluationSection(context),
+              SizedBox(height: 24),
               _buildPlayVideosButton(context),
               
               SizedBox(height: 24),
               _buildVideoAnalysis(context),
-              
-              SizedBox(height: 24),
-              _buildScoutEvaluationSection(context),
               SizedBox(height: 24),
               if ((p.aiSummaryReport == null || p.aiSummaryReport!.isEmpty) &&
                   p.isComplete)

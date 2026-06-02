@@ -87,6 +87,18 @@ class PushNotificationService {
     );
   }
 
+  static Future<String?> _awaitApnsToken(
+    FirebaseMessaging messaging, {
+    int attempts = 8,
+  }) async {
+    for (var i = 0; i < attempts; i++) {
+      final apns = await messaging.getAPNSToken();
+      if (apns != null && apns.isNotEmpty) return apns;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    return null;
+  }
+
   static Future<void> syncTokenWithBackend() async {
     final hasSession = currentAccessTokenNotifier.value != null &&
         currentAccessTokenNotifier.value!.isNotEmpty;
@@ -121,10 +133,14 @@ class PushNotificationService {
         return;
       }
 
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await _awaitApnsToken(messaging);
+      }
+
       var token = await messaging.getToken();
       if (token == null || token.isEmpty) {
         // iOS tarafinda APNS gec geldiginde ilk deneme null donuyor.
-        await Future<void>.delayed(const Duration(milliseconds: 800));
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
         token = await messaging.getToken();
       }
       if (token == null || token.isEmpty) {
