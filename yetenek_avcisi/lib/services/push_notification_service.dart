@@ -187,7 +187,8 @@ class PushNotificationService {
       }
     } catch (e) {
       debugPrint('[FCM] backend token temizleme: $e');
-      rethrow;
+      // Ayarlardan "bildirim kapat" akışını bozma:
+      // backend temizliği başarısız olsa bile toggle kapalı kalmalı.
     }
   }
 
