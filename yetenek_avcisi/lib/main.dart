@@ -450,6 +450,11 @@ void main() async {
     FlutterError.presentError(details);
     debugPrint('[FlutterError] ${details.exceptionAsString()}');
   };
+  runApp(const ScoutiqApp());
+  unawaited(_bootstrapAppServices());
+}
+
+Future<void> _bootstrapAppServices() async {
   await _loadSavedLanguage();
   try {
     await PushNotificationService.initialize();
@@ -470,7 +475,6 @@ void main() async {
   currentAccessTokenNotifier.addListener(() {
     PushNotificationService.applyNotificationPreference();
   });
-  runApp(const ScoutiqApp());
 }
 
 class ScoutiqApp extends StatefulWidget {

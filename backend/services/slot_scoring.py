@@ -347,14 +347,45 @@ def build_scout_report(
     ovr: int,
     breakdown: list[dict[str, Any]],
 ) -> str:
-    lines = [
-        f"{name} ({position}) için slot bazlı AI değerlendirmesi tamamlandı. Genel OVR: {ovr}.",
-        "",
-        "Test bazlı özet:",
-    ]
+    scores: list[int] = []
+    observations: list[str] = []
     for r in breakdown:
-        lbl = r.get("label") or r.get("skill") or "Test"
-        sc = r.get("score")
-        obs = (r.get("observation") or "").strip()
-        lines.append(f"• {lbl}: {sc}/100. {obs}")
+        try:
+            score = int(float(str(r.get("score") or 0)))
+        except Exception:
+            score = 0
+        if score > 0:
+            scores.append(score)
+        obs = str(r.get("observation") or "").strip()
+        if obs:
+            observations.append(obs)
+
+    avg_score = round(sum(scores) / len(scores)) if scores else ovr
+    peak = max(scores) if scores else ovr
+    floor = min(scores) if scores else ovr
+    consistency = "istikrarlı" if (peak - floor) < 20 else "inişli çıkışlı"
+
+    strengths, improvements = strengths_and_improvements(breakdown, top_n=2)
+    strength_topics = ", ".join([s.split(":")[0] for s in strengths[:2]]) or "atak çeşitliliği"
+    improve_topics = ", ".join([i.split(":")[0] for i in improvements[:2]]) or "karar sürekliliği"
+
+    evidence = " ".join(observations[:3]).strip()
+    if len(evidence) > 420:
+        evidence = f"{evidence[:420].rstrip()}..."
+    if not evidence:
+        evidence = (
+            "Video sekanslarında teknik uygulama, tempo yönetimi ve karar kalitesi birlikte değerlendirildi."
+        )
+
+    lines = [
+        f"{name} ({position}) için 3 video birlikte analiz edildi. Genel OVR: {ovr}.",
+        "",
+        (
+            f"Toplam performans ortalaması {avg_score}/100 düzeyinde; genel profil {consistency}. "
+            f"Oyuncunun öne çıkan tarafları {strength_topics} alanlarında belirginleşirken, "
+            f"gelişim için {improve_topics} taraflarında süreklilik artışı önerilir."
+        ),
+        "",
+        evidence,
+    ]
     return "\n".join(lines).strip()

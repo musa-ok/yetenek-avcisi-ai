@@ -325,19 +325,36 @@ class PushNotificationService {
       'authorizationStatus=$status',
     );
 
-    final apns = await messaging.getAPNSToken();
-    addStep(
-      'APNS token',
-      apns != null && apns.isNotEmpty,
-      apns != null && apns.isNotEmpty ? 'APNS token var' : 'APNS token yok',
-    );
+    String? apns;
+    try {
+      apns = await messaging.getAPNSToken();
+      if ((apns == null || apns.isEmpty) && defaultTargetPlatform == TargetPlatform.iOS) {
+        apns = await _awaitApnsToken(messaging, attempts: 6);
+      }
+      addStep(
+        'APNS token',
+        apns != null && apns.isNotEmpty,
+        apns != null && apns.isNotEmpty ? 'APNS token var' : 'APNS token yok',
+      );
+    } catch (e) {
+      addStep('APNS token', false, 'APNS token okunamadi: $e');
+    }
 
-    final fcm = await messaging.getToken();
-    addStep(
-      'FCM token',
-      fcm != null && fcm.isNotEmpty,
-      fcm != null && fcm.isNotEmpty ? 'FCM token var' : 'FCM token yok',
-    );
+    String? fcm;
+    try {
+      fcm = await messaging.getToken();
+      if (fcm == null || fcm.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        fcm = await messaging.getToken();
+      }
+      addStep(
+        'FCM token',
+        fcm != null && fcm.isNotEmpty,
+        fcm != null && fcm.isNotEmpty ? 'FCM token var' : 'FCM token yok',
+      );
+    } catch (e) {
+      addStep('FCM token', false, 'FCM token okunamadi: $e');
+    }
 
     if (fcm != null && fcm.isNotEmpty) {
       try {
