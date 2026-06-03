@@ -262,6 +262,12 @@ class MergedLatestSixStats {
     required this.overallRating,
     this.latestReport,
     required this.sessionCount,
+    this.latestPosition,
+    this.latestAnalysisDateLabel,
+    this.latestAnalysisPlayerId,
+    this.ovrDelta7d,
+    this.uploadedVideoCount = 0,
+    this.requiredVideoCount = 3,
   });
 
   final int? pace;
@@ -273,6 +279,15 @@ class MergedLatestSixStats {
   final int overallRating;
   final String? latestReport;
   final int sessionCount;
+  final String? latestPosition;
+  final String? latestAnalysisDateLabel;
+  final int? latestAnalysisPlayerId;
+  final int? ovrDelta7d;
+  final int uploadedVideoCount;
+  final int requiredVideoCount;
+
+  bool get hasVideoProgress =>
+      requiredVideoCount > 0 && uploadedVideoCount < requiredVideoCount;
 
   bool get hasMeasurableStats =>
       [pace, finishing, passing, dribbling, defending, strength]
@@ -283,6 +298,65 @@ class MergedLatestSixStats {
 
   String get displayOverall =>
       overallRating > 0 ? '$overallRating' : '—';
+}
+
+int countUploadedVideos(MultiVideoPlayer p) {
+  var n = 0;
+  for (final v in p.videos) {
+    if (v.isKosuSlot) {
+      if (v.kosuFlatUploaded) n++;
+      if (v.kosuUphillUploaded) n++;
+    } else if (v.url != null && v.url!.trim().isNotEmpty) {
+      n++;
+    }
+  }
+  return n;
+}
+
+DateTime? sessionDateTime(MultiVideoPlayer p) {
+  for (final raw in [p.updatedAt, p.createdAt]) {
+    if (raw == null || raw.isEmpty) continue;
+    final t = DateTime.tryParse(raw);
+    if (t != null) return t;
+  }
+  return null;
+}
+
+String formatSessionDateLabel(MultiVideoPlayer p) {
+  final t = sessionDateTime(p);
+  if (t == null) return '';
+  final d = t.day.toString().padLeft(2, '0');
+  final m = t.month.toString().padLeft(2, '0');
+  return '$d.$m.${t.year}';
+}
+
+int _sessionMeasuredOvr(MultiVideoPlayer p) {
+  final six = _measuredSixForSession(p);
+  final measured = [
+    six.pace,
+    six.finishing,
+    six.passing,
+    six.dribbling,
+    six.defending,
+    six.strength,
+  ].whereType<int>().where((v) => v > 0).toList();
+  if (measured.isEmpty) return p.overallRating > 0 ? p.overallRating : 0;
+  return (measured.reduce((a, b) => a + b) / measured.length).round().clamp(1, 99);
+}
+
+int? computeOvrDelta7d(List<MultiVideoPlayer> newestFirst, int currentOvr) {
+  if (currentOvr <= 0 || newestFirst.isEmpty) return null;
+  final now = DateTime.now();
+  for (final p in newestFirst) {
+    final t = sessionDateTime(p);
+    if (t == null) continue;
+    if (now.difference(t).inDays >= 7) {
+      final past = _sessionMeasuredOvr(p);
+      if (past > 0 && currentOvr > past) return currentOvr - past;
+      return null;
+    }
+  }
+  return null;
 }
 
 int _sessionSortKey(MultiVideoPlayer p) {
@@ -372,6 +446,19 @@ MergedLatestSixStats? _buildMergedLatestSixStatsImpl(List<MultiVideoPlayer> play
     }
   }
 
+  final latest = newestFirst.first;
+  MultiVideoPlayer? activeSession;
+  for (final p in newestFirst) {
+    if (!p.isComplete) {
+      activeSession = p;
+      break;
+    }
+  }
+  activeSession ??= latest;
+  final requiredVideos = activeSession.requiredVideoCount > 0
+      ? activeSession.requiredVideoCount
+      : 3;
+
   return MergedLatestSixStats(
     pace: pace,
     finishing: finishing,
@@ -382,6 +469,12 @@ MergedLatestSixStats? _buildMergedLatestSixStatsImpl(List<MultiVideoPlayer> play
     overallRating: ovr,
     latestReport: latestReport,
     sessionCount: players.length,
+    latestPosition: latest.position.trim().isNotEmpty ? latest.position : null,
+    latestAnalysisDateLabel: formatSessionDateLabel(latest),
+    latestAnalysisPlayerId: latest.id > 0 ? latest.id : null,
+    ovrDelta7d: computeOvrDelta7d(newestFirst, ovr),
+    uploadedVideoCount: countUploadedVideos(activeSession),
+    requiredVideoCount: requiredVideos,
   );
 }
 

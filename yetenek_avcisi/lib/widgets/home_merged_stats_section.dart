@@ -69,6 +69,10 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
         '${lab.statPhysical}: ${m.displayStat(m.strength)}',
         lab.appName,
       ];
+      final pid = m.latestAnalysisPlayerId;
+      if (pid != null && pid > 0) {
+        lines.add('yetenekavcisi://player/$pid');
+      }
 
       await ShareHelper.shareXFiles(
         [XFile(file.path, mimeType: 'image/png')],
@@ -93,12 +97,12 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
     const cardBg = AppColors.cardBackground;
 
     final gridStats = <_GridStat>[
-      _GridStat(lab.statPace, m.displayStat(m.pace), Icons.directions_run_rounded),
-      _GridStat(lab.statShooting, m.displayStat(m.finishing), Icons.sports_soccer_rounded),
-      _GridStat(lab.statPassing, m.displayStat(m.passing), Icons.swap_horiz_rounded),
-      _GridStat(lab.statDribbling, m.displayStat(m.dribbling), Icons.control_camera_rounded),
-      _GridStat(lab.statDefending, m.displayStat(m.defending), Icons.shield_outlined),
-      _GridStat(lab.statPhysical, m.displayStat(m.strength), Icons.fitness_center_rounded),
+      _GridStat(lab.statPace, m.displayStat(m.pace), Icons.directions_run_rounded, m.pace),
+      _GridStat(lab.statShooting, m.displayStat(m.finishing), Icons.sports_soccer_rounded, m.finishing),
+      _GridStat(lab.statPassing, m.displayStat(m.passing), Icons.swap_horiz_rounded, m.passing),
+      _GridStat(lab.statDribbling, m.displayStat(m.dribbling), Icons.control_camera_rounded, m.dribbling),
+      _GridStat(lab.statDefending, m.displayStat(m.defending), Icons.shield_outlined, m.defending),
+      _GridStat(lab.statPhysical, m.displayStat(m.strength), Icons.fitness_center_rounded, m.strength),
     ];
 
     return Column(
@@ -133,6 +137,27 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
             ),
           ],
         ),
+        if (m.ovrDelta7d != null && m.ovrDelta7d! > 0) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                lab.ovrRise7d(m.ovrDelta7d!),
+                style: const TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        ],
         if (!m.hasMeasurableStats) ...[
           const SizedBox(height: 6),
           Text(
@@ -173,7 +198,7 @@ class _HomeMergedStatsSectionState extends State<HomeMergedStatsSection> {
                   physics: const NeverScrollableScrollPhysics(),
                   mainAxisSpacing: 10,
                   crossAxisSpacing: 10,
-                  childAspectRatio: 1.45,
+                  childAspectRatio: 1.35,
                   children: [
                     for (final s in gridStats) _StatGridCard(stat: s),
                   ],
@@ -232,10 +257,11 @@ class _HeroOvrBadge extends StatelessWidget {
 }
 
 class _GridStat {
-  const _GridStat(this.title, this.value, this.icon);
+  const _GridStat(this.title, this.value, this.icon, this.rawValue);
   final String title;
   final String value;
   final IconData icon;
+  final int? rawValue;
 }
 
 class _StatGridCard extends StatelessWidget {
@@ -248,7 +274,7 @@ class _StatGridCard extends StatelessWidget {
     const accent = AppColors.accentGreen;
     final hasValue = stat.value != '—';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.scaffoldBackground,
         borderRadius: BorderRadius.circular(14),
@@ -260,7 +286,6 @@ class _StatGridCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Icon(stat.icon, color: accent, size: 22),
           Text(
@@ -273,11 +298,12 @@ class _StatGridCard extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+          const Spacer(),
           Text(
             stat.value,
             style: TextStyle(
               color: hasValue ? accent : Colors.white38,
-              fontSize: 26,
+              fontSize: hasValue ? 26 : 22,
               fontWeight: FontWeight.w800,
             ),
           ),

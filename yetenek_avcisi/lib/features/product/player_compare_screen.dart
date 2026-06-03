@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:yetenek_avcisi/app_services.dart';
+import 'package:yetenek_avcisi/core/utils/fifa_six_stats.dart';
 import 'package:yetenek_avcisi/services/multi_upload_service.dart';
 
 const _card = Color(0xFF151C2B);
@@ -9,12 +10,12 @@ const _green = Color(0xFF00FF87);
 class PlayerCompareScreen extends StatefulWidget {
   const PlayerCompareScreen({
     super.key,
-    required this.playerA,
+    this.playerA,
     this.playerB,
     this.allPlayers = const [],
   });
 
-  final PlayerListItem playerA;
+  final PlayerListItem? playerA;
   final PlayerListItem? playerB;
   final List<PlayerListItem> allPlayers;
 
@@ -23,7 +24,7 @@ class PlayerCompareScreen extends StatefulWidget {
 }
 
 class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
-  late PlayerListItem _a;
+  PlayerListItem? _a;
   PlayerListItem? _b;
   Map<String, dynamic>? _data;
   bool _loading = false;
@@ -41,11 +42,44 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     _b = widget.playerB;
     _candidatePool = List<PlayerListItem>.from(widget.allPlayers);
     _loadOwnAnalysesForCompare();
-    if (_b != null) _load();
+    if (_a != null && _b != null) _load();
   }
 
+  bool get _isScout =>
+      (currentUserNotifier.value?.role ?? '').trim().toLowerCase() == 'scout';
+
   String _playerKey(PlayerListItem p) => '${p.source}:${p.id}';
-  bool _isSameAnalysis(PlayerListItem x, PlayerListItem y) => x.id == y.id;
+  bool _isSameAnalysis(PlayerListItem x, PlayerListItem y) =>
+      _playerKey(x) == _playerKey(y);
+
+  Future<void> _showSameAnalysisAlert(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _card,
+        title: const Text(
+          'Aynı analiz',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Karşılaştırmak için farklı bir analiz veya oyuncu seçin.',
+          style: TextStyle(color: Colors.white70, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text(
+              'Tamam',
+              style: TextStyle(
+                color: _green,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   DateTime _sortDate(PlayerListItem p) {
     final raw = p.updatedAt;
     if (raw == null || raw.trim().isEmpty) {
@@ -82,6 +116,7 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
               'overall_rating': p.overallRating,
               'ai_scout_report': p.aiSummaryReport,
               'source': 'multivideo',
+              'skill_scores': p.skillScores,
               'slot_breakdown': p.slotBreakdown,
               'analysis_version': p.analysisVersion,
               'pace': p.pace,
@@ -90,6 +125,7 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
               'dribbling': p.dribbling,
               'defending': p.defending,
               'strength': p.strength,
+              'physical_attributes': p.physicalAttributes,
               'updated_at': p.updatedAt,
             }),
           )
@@ -111,15 +147,9 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
   }
 
   Future<void> _load() async {
-    if (_b == null) return;
-    if (_isSameAnalysis(_a, _b!)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Aynı analiz seçilemez. Lütfen farklı bir analiz seç.'),
-          ),
-        );
-      }
+    if (_a == null || _b == null) return;
+    if (_isSameAnalysis(_a!, _b!)) {
+      if (mounted) await _showSameAnalysisAlert(context);
       return;
     }
     setState(() {
@@ -128,7 +158,7 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
     });
     try {
       final data = {
-        'player_a': _toCompareSide(_a),
+        'player_a': _toCompareSide(_a!),
         'player_b': _toCompareSide(_b!),
       };
       if (!mounted) return;
@@ -142,39 +172,25 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
   }
 
   Map<String, dynamic> _toCompareSide(PlayerListItem p) {
-    int? clean(int? v) => (v != null && v > 0) ? v : null;
-    int? fromBreakdown(String attr) {
-      final rows = p.slotBreakdown
-          .where((r) => '${r['attribute'] ?? ''}' == attr)
-          .toList();
-      if (rows.isEmpty) return null;
-      final values = <int>[];
-      for (final r in rows) {
-        final raw = r['score'];
-        if (raw is int && raw > 0) values.add(raw);
-        if (raw is num && raw > 0) values.add(raw.toInt());
-      }
-      if (values.isEmpty) return null;
-      final avg = values.reduce((a, b) => a + b) / values.length;
-      return avg.round();
-    }
-    int? score(int? primary, String attr) => clean(primary) ?? fromBreakdown(attr);
+    final six = p.fifaSix;
     return {
       'id': p.id,
       'name': p.name,
       'position': p.position,
       'ovr': p.fifaCardOvr,
-      // Seçilen analizin kendi altı skoru kullanılır.
       'skills': {
-        'pac': score(p.pac, 'pace'),
-        'sho': score(p.sho, 'finishing'),
-        'pas': score(p.pas, 'passing'),
-        'dri': score(p.dri, 'dribbling'),
-        'def': score(p.def, 'defending'),
-        'phy': score(p.phy, 'strength'),
+        'pac': six.pace,
+        'sho': six.finishing,
+        'pas': six.passing,
+        'dri': six.dribbling,
+        'def': six.defending,
+        'phy': six.strength,
       },
     };
   }
+
+  bool _hasComparableSkills(Map<String, int?> skills) =>
+      skills.values.any((v) => v != null && v > 0);
 
   Future<void> _pickFor({required bool sideA}) async {
     final anchor = sideA ? _b : _a;
@@ -195,7 +211,9 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
             final filtered = _candidatePool.where((p) {
-              if (modalOnlyMine && !_mineKeys.contains(_playerKey(p))) {
+              if (!_isScout &&
+                  modalOnlyMine &&
+                  !_mineKeys.contains(_playerKey(p))) {
                 return false;
               }
               final byPosition = selectedPosition == 'Tümü' ||
@@ -263,34 +281,36 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                         () => selectedPosition = v ?? 'Tümü',
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: FilterChip(
-                        selected: modalOnlyMine,
-                        label: const Text('Sadece benim analizlerim'),
-                        onSelected: (v) => setModalState(() {
-                          modalOnlyMine = v;
-                          if (sideA) {
-                            _onlyMineA = v;
-                          } else {
-                            _onlyMineB = v;
-                          }
-                        }),
-                        backgroundColor: Colors.white.withValues(alpha: 0.06),
-                        selectedColor: _green.withValues(alpha: 0.2),
-                        checkmarkColor: _green,
-                        labelStyle: TextStyle(
-                          color: modalOnlyMine ? _green : Colors.white70,
-                          fontSize: 12,
-                        ),
-                        side: BorderSide(
-                          color: modalOnlyMine
-                              ? _green.withValues(alpha: 0.45)
-                              : Colors.white24,
+                    if (!_isScout) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilterChip(
+                          selected: modalOnlyMine,
+                          label: const Text('Sadece benim analizlerim'),
+                          onSelected: (v) => setModalState(() {
+                            modalOnlyMine = v;
+                            if (sideA) {
+                              _onlyMineA = v;
+                            } else {
+                              _onlyMineB = v;
+                            }
+                          }),
+                          backgroundColor: Colors.white.withValues(alpha: 0.06),
+                          selectedColor: _green.withValues(alpha: 0.2),
+                          checkmarkColor: _green,
+                          labelStyle: TextStyle(
+                            color: modalOnlyMine ? _green : Colors.white70,
+                            fontSize: 12,
+                          ),
+                          side: BorderSide(
+                            color: modalOnlyMine
+                                ? _green.withValues(alpha: 0.45)
+                                : Colors.white24,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: 10),
                     Flexible(
                       child: filtered.isEmpty
@@ -315,7 +335,8 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                                     _metaLine(p),
                                     style: const TextStyle(color: Colors.white54),
                                   ),
-                                  trailing: _mineKeys.contains(_playerKey(p))
+                                  trailing: !_isScout &&
+                                          _mineKeys.contains(_playerKey(p))
                                       ? Container(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 8,
@@ -341,16 +362,10 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                                             fontSize: 11,
                                           ),
                                         ),
-                                  onTap: () {
+                                  onTap: () async {
                                     if (anchor != null &&
                                         _isSameAnalysis(p, anchor)) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Aynı analiz seçilemez. Lütfen farklı bir analiz seç.',
-                                          ),
-                                        ),
-                                      );
+                                      await _showSameAnalysisAlert(ctx);
                                       return;
                                     }
                                     Navigator.pop(ctx, p);
@@ -425,8 +440,8 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
                 child: InkWell(
                   onTap: () => _pickFor(sideA: true),
                   child: _playerChip(
-                    _a.name,
-                    _metaLine(_a),
+                    _a?.name ?? 'Oyuncu seç',
+                    _a == null ? 'Mevki • AI OVR • Tarih' : _metaLine(_a!),
                     _green,
                   ),
                 ),
@@ -456,10 +471,25 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
           if (_loading) const Center(child: CircularProgressIndicator(color: _green)),
           if (_error != null)
             Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+          if ((_a == null || _b == null) && !_loading)
+            Padding(
+              padding: const EdgeInsets.only(top: 24),
+              child: Text(
+                _a == null && _b == null
+                    ? 'Karşılaştırmak için sol veya sağ taraftan bir analiz seçin.'
+                    : 'Karşılaştırmak için ${_a == null ? 'sol' : 'sağ'} taraftan bir analiz seçin.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.55),
+                  fontSize: 14,
+                ),
+              ),
+            ),
           if (!_loading &&
+              _a != null &&
               _b != null &&
-              skillsA.values.any((v) => v != null) &&
-              skillsB.values.any((v) => v != null)) ...[
+              _hasComparableSkills(skillsA) &&
+              _hasComparableSkills(skillsB)) ...[
             SizedBox(
               height: 280,
               child: RadarChart(
@@ -497,7 +527,72 @@ class _PlayerCompareScreenState extends State<PlayerCompareScreen> {
             ),
             const SizedBox(height: 16),
             _metricTable(skillsA, skillsB),
+          ] else if (!_loading && _a != null && _b != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: _ovrOnlyCompareCard(sideA, sideB),
+            ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _ovrOnlyCompareCard(
+    Map<String, dynamic>? sideA,
+    Map<String, dynamic>? sideB,
+  ) {
+    final ovrA = sideA?['ovr'];
+    final ovrB = sideB?['ovr'];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'AI OVR',
+            style: TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Text(
+                '$ovrA',
+                style: const TextStyle(
+                  color: _green,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Text(
+                'vs',
+                style: TextStyle(color: Colors.white38),
+              ),
+              Text(
+                '$ovrB',
+                style: const TextStyle(
+                  color: Colors.orangeAccent,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Alt beceri verisi bu kayıtlar için henüz yok; yalnızca OVR karşılaştırıldı.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.35),
+          ),
         ],
       ),
     );

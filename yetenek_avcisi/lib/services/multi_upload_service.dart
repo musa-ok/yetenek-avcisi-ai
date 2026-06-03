@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../app_services.dart';
+import '../core/auth/session_auth.dart';
 import '../core/utils/profile_formatters.dart';
 
 /// ==========================================
@@ -616,14 +617,22 @@ class MultiUploadService {
     if (token == null || token.isEmpty) {
       throw Exception('Oturum gerekli');
     }
-    final response = await http.get(
-      Uri.parse('$_baseUrl/players/multivideo/mine'),
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    ).timeout(const Duration(seconds: 30));
+    final response = await SessionAuth.execute(() {
+      final bearer = currentAccessTokenNotifier.value?.trim() ?? token;
+      return http
+          .get(
+            Uri.parse('$_baseUrl/players/multivideo/mine'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $bearer',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+    });
 
+    if (response.statusCode == 401) {
+      throw Exception('Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
+    }
     if (response.statusCode != 200) {
       throw Exception('Analizler listelenemedi: ${response.statusCode}');
     }

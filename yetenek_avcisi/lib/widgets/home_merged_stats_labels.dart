@@ -13,6 +13,7 @@ class HomeMergedStatsLabels {
     required this.shareStats,
     required this.shareFailed,
     required this.appName,
+    required this.ovrRise7d,
   });
 
   final String sectionTitle;
@@ -27,4 +28,5 @@ class HomeMergedStatsLabels {
   final String shareStats;
   final String shareFailed;
   final String appName;
+  final String Function(int delta) ovrRise7d;
 }

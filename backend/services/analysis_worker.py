@@ -217,9 +217,24 @@ def run_multivideo_finalize(player_id: int) -> dict:
             skill_scores, new_ovr
         )
 
+        from services.discover_visibility import (
+            prior_session_overall_rating_for_user,
+            resolve_previous_overall_before_finalize,
+        )
+
         old_ovr = int(player.overall_rating or 0)
-        if player.overall_rating and player.overall_rating > 35:
-            player.previous_overall_rating = player.overall_rating
+        prior_session_ovr = prior_session_overall_rating_for_user(
+            db,
+            user_id=player.user_id,
+            position=player.position or "",
+            exclude_player_id=player.id,
+        )
+        prev_ref = resolve_previous_overall_before_finalize(
+            player,
+            prior_session_ovr=prior_session_ovr,
+        )
+        if prev_ref is not None:
+            player.previous_overall_rating = prev_ref
         player.overall_rating = max(1, min(100, new_ovr))
         player.skill_scores = skill_scores
         player.ai_summary_report = slot_scoring.build_scout_report(

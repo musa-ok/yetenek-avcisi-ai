@@ -3,8 +3,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../app_services.dart';
+import '../auth/session_auth.dart';
 
-/// Merkezi HTTP istemcisi — Bearer token otomatik eklenir.
+/// Merkezi HTTP istemcisi — Bearer token otomatik eklenir; 401'de refresh + retry.
 class ApiClient {
   ApiClient._();
 
@@ -43,9 +44,14 @@ class ApiClient {
     bool authRequired = false,
     Duration timeout = const Duration(seconds: 30),
   }) {
-    return http
-        .get(_buildUri(path, query), headers: headers(authRequired: authRequired))
-        .timeout(timeout);
+    return SessionAuth.execute(
+      () => http
+          .get(
+            _buildUri(path, query),
+            headers: headers(authRequired: authRequired),
+          )
+          .timeout(timeout),
+    );
   }
 
   static Future<http.Response> post(
@@ -54,13 +60,15 @@ class ApiClient {
     bool authRequired = false,
     Duration timeout = const Duration(seconds: 30),
   }) {
-    return http
-        .post(
-          uri(path),
-          headers: headers(authRequired: authRequired),
-          body: body == null ? null : json.encode(body),
-        )
-        .timeout(timeout);
+    return SessionAuth.execute(
+      () => http
+          .post(
+            uri(path),
+            headers: headers(authRequired: authRequired),
+            body: body == null ? null : json.encode(body),
+          )
+          .timeout(timeout),
+    );
   }
 
   static Future<http.Response> put(
@@ -69,13 +77,15 @@ class ApiClient {
     bool authRequired = true,
     Duration timeout = const Duration(seconds: 30),
   }) {
-    return http
-        .put(
-          uri(path),
-          headers: headers(authRequired: authRequired),
-          body: body == null ? null : json.encode(body),
-        )
-        .timeout(timeout);
+    return SessionAuth.execute(
+      () => http
+          .put(
+            uri(path),
+            headers: headers(authRequired: authRequired),
+            body: body == null ? null : json.encode(body),
+          )
+          .timeout(timeout),
+    );
   }
 
   static Future<http.Response> delete(
@@ -83,9 +93,11 @@ class ApiClient {
     bool authRequired = true,
     Duration timeout = const Duration(seconds: 30),
   }) {
-    return http
-        .delete(uri(path), headers: headers(authRequired: authRequired))
-        .timeout(timeout);
+    return SessionAuth.execute(
+      () => http
+          .delete(uri(path), headers: headers(authRequired: authRequired))
+          .timeout(timeout),
+    );
   }
 
   static Future<http.Response> patch(
@@ -94,13 +106,15 @@ class ApiClient {
     bool authRequired = true,
     Duration timeout = const Duration(seconds: 30),
   }) {
-    return http
-        .patch(
-          uri(path),
-          headers: headers(authRequired: authRequired),
-          body: body == null ? null : json.encode(body),
-        )
-        .timeout(timeout);
+    return SessionAuth.execute(
+      () => http
+          .patch(
+            uri(path),
+            headers: headers(authRequired: authRequired),
+            body: body == null ? null : json.encode(body),
+          )
+          .timeout(timeout),
+    );
   }
 
   static ApiException friendlyError(http.Response res) {

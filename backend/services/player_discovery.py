@@ -6,6 +6,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 import models_multivideo
+from services.discover_visibility import is_rising_7d
 from services.player_helpers import multivideo_to_public_dict
 
 
@@ -60,9 +61,7 @@ def discover_players_as_dicts(db: Session, **filters):
         d = multivideo_to_public_dict(p, db)
         prev = p.previous_overall_rating
         cur = d.get("overall_rating") or p.overall_rating or 0
-        d["rising_7d"] = bool(
-            prev is not None and cur > prev and p.updated_at
-        )
+        d["rising_7d"] = is_rising_7d(p)
         d["ovr_delta"] = (cur - prev) if prev is not None else None
         out.append(d)
 

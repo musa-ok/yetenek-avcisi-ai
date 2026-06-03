@@ -30,6 +30,8 @@ import 'package:yetenek_avcisi/widgets/scoutiq_logo_mark.dart';
 import 'package:yetenek_avcisi/core/app_notifiers.dart';
 import 'package:yetenek_avcisi/widgets/home_merged_stats_section.dart';
 import 'package:yetenek_avcisi/widgets/home_merged_stats_labels.dart';
+import 'package:yetenek_avcisi/widgets/home_loading_skeleton.dart';
+import 'package:yetenek_avcisi/core/auth/session_auth.dart';
 import 'package:yetenek_avcisi/core/deep_link/deep_link_service.dart';
 import 'package:yetenek_avcisi/core/utils/fifa_six_stats.dart';
 import 'package:yetenek_avcisi/core/settings/app_settings.dart';
@@ -130,8 +132,6 @@ class L10n {
 
   String get fabRecord => en ? 'Record player' : 'Oyuncu Çek';
 
-  String get fabUpload => en ? 'Upload video' : 'Video Yükle';
-
   String welcomeBack(String name) =>
       en ? 'Welcome back, $name' : 'Hoş Geldin, $name';
 
@@ -166,9 +166,6 @@ class L10n {
   String get statDefending => en ? 'Defending' : 'Savunma';
 
   String get statPhysical => en ? 'Physical' : 'Fizik';
-
-  String fabUploadVideos(int count) =>
-      en ? 'Upload $count videos' : '$count Video Yükle';
 
   String get fabStartAnalysis => en ? 'Start analysis' : 'Analize Başla';
 
@@ -254,7 +251,13 @@ class L10n {
   String get addedToFavorites =>
       en ? 'Added to favorites' : 'Favorilere eklendi';
 
+  String get removedFromFavorites =>
+      en ? 'Removed from favorites' : 'Favorilerden çıkarıldı';
+
   String get addToFavorites => en ? 'Add to favorites' : 'Favorilere ekle';
+
+  String get removeFromFavorites =>
+      en ? 'Remove from favorites' : 'Favorilerden çıkar';
 
   String get favoritesEmpty =>
       en ? 'No players in favorites yet' : 'Favorilerinde henüz oyuncu yok';
@@ -398,6 +401,52 @@ class L10n {
       ? 'No players registered in the system yet.'
       : 'Henüz sisteme kayıtlı bir futbolcu bulunmuyor.';
 
+  String get exploreFilterTitle => en ? 'Filter' : 'Filtrele';
+
+  String get exploreFilterEmptyHint => en
+      ? 'No players match your filters.'
+      : 'Seçtiğiniz filtrelere uygun oyuncu bulunamadı.';
+
+  String get clearFilters => en ? 'Clear filters' : 'Filtreleri temizle';
+
+  String get homeComparePlayersTitle =>
+      en ? 'Compare players' : 'Oyuncuları Karşılaştır';
+
+  String get homeComparePlayersSubtitle => en
+      ? 'Side-by-side OVR and skills — your sessions or players on Discover.'
+      : 'OVR ve becerileri yan yana: kendi oturumların veya Keşfet\'teki oyuncular.';
+
+  String get homeMyAnalyses =>
+      en ? 'On Discover' : 'Keşfet\'teki analizlerim';
+
+  String get homeMyAnalysesEmpty => en
+      ? 'No active analysis on Discover yet. Complete a session to appear here.'
+      : 'Keşfet\'te görünen analizin henüz yok. Oturumu tamamlayınca burada görünür.';
+
+  String get homeQuickUpload => en ? 'Upload' : 'Video yükle';
+
+  String homeOvrRise7d(int delta) =>
+      en ? '+$delta OVR in the last 7 days' : 'Son 7 günde +$delta OVR';
+
+  String get homeCompareScoutTitle =>
+      en ? 'Compare players' : 'Oyuncu Karşılaştır';
+
+  String get homeCompareScoutSubtitle => en
+      ? 'Pick two players; see OVR and skills side by side.'
+      : 'İki oyuncu seç; OVR ve becerileri yan yana gör.';
+
+  String get homeCompareScoutEmpty => en
+      ? 'No players on Discover to compare yet.'
+      : 'Karşılaştırılacak oyuncu henüz yok. Keşfet\'i kontrol edin.';
+
+  String get homeQuickCompare => en ? 'Compare' : 'Karşılaştır';
+
+  String get homeQuickExplore => en ? 'Discover' : 'Keşfet';
+
+  String get homeSeeAllInExplore => en
+      ? 'See all in Discover'
+      : 'Tümünü Keşfet\'te gör';
+
   String get pleaseFillFields => en
       ? 'Please fill in all required fields.'
       : 'Lütfen tüm gerekli alanları doldurun.';
@@ -462,6 +511,11 @@ Future<void> _bootstrapAppServices() async {
   }
   await SessionStore.restoreIntoNotifier();
   try {
+    await SessionAuth.warmSessionAfterRestore();
+  } catch (e, st) {
+    debugPrint('[Auth] session warm: $e\n$st');
+  }
+  try {
     await PushNotificationService.applyNotificationPreference();
   } catch (e, st) {
     debugPrint('[FCM] preference sync: $e\n$st');
@@ -483,13 +537,21 @@ class ScoutiqApp extends StatefulWidget {
   State<ScoutiqApp> createState() => _ScoutiqAppState();
 }
 
-class _ScoutiqAppState extends State<ScoutiqApp> {
+class _ScoutiqAppState extends State<ScoutiqApp> with WidgetsBindingObserver {
   StreamSubscription<DeepLinkTarget>? _deepLinkSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _deepLinkSub = DeepLinkService.stream.listen(_onDeepLink);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(SessionAuth.warmSessionAfterRestore());
+    }
   }
 
   void _onDeepLink(DeepLinkTarget target) {
@@ -512,6 +574,7 @@ class _ScoutiqAppState extends State<ScoutiqApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _deepLinkSub?.cancel();
     super.dispose();
   }
@@ -798,7 +861,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text(l.errorGeneric(e)),
+            content: Text(_friendlyLoginError(e)),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -929,9 +992,10 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       debugPrint('[LOGIN SOCIAL] ERROR: $e');
       if (mounted) {
+        final msg = _friendlyLoginError(e);
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Bir hata oluştu: $e'),
+            content: Text(msg),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -939,6 +1003,15 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  String _friendlyLoginError(Object e) {
+    final raw = e.toString();
+    if (raw.contains('Connection refused') || raw.contains('127.0.0.1:8000')) {
+      return 'Sunucuya bağlanılamadı. Uygulamayı prod API ile çalıştırın veya yerel backend\'i (port 8000) başlatın.';
+    }
+    if (e is ApiException) return e.message;
+    return 'Giriş yapılamadı. Lütfen tekrar deneyin.';
   }
 
   Widget _buildSocialButton({
@@ -2065,7 +2138,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  int? _myRequiredVideoCount;
 
   @override
   void initState() {
@@ -2088,18 +2160,14 @@ class _MainScreenState extends State<MainScreen> {
     final user = currentUserNotifier.value;
     if (user?.role != 'Futbolcu') {
       myAnalysisSessionCountNotifier.value = 0;
-      if (mounted) setState(() => _myRequiredVideoCount = null);
       return;
     }
     try {
       final mine = await MultiUploadService.listMyAnalyses();
       myAnalysisSessionCountNotifier.value = mine.length;
       homeMergedStatsNotifier.value = buildMergedLatestSixStats(mine);
-      final count = mine.isNotEmpty ? mine.first.requiredVideoCount : null;
-      if (mounted) setState(() => _myRequiredVideoCount = count);
     } catch (_) {
       myAnalysisSessionCountNotifier.value = 0;
-      if (mounted) setState(() => _myRequiredVideoCount = null);
     }
   }
 
@@ -2128,43 +2196,15 @@ class _MainScreenState extends State<MainScreen> {
             child: KeyedSubtree(
               key: ValueKey(_currentIndex),
               child: [
-                ScoutDashboardScreen(user: user),
+                ScoutDashboardScreen(
+                  user: user,
+                  onOpenExplore: () => setState(() => _currentIndex = 1),
+                ),
                 const ExploreScreen(),
                 const ClubProfileScreen(),
               ][_currentIndex],
             ),
           ),
-          floatingActionButton: user.role == 'Futbolcu'
-              ? FloatingActionButton.extended(
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            MultiUploadScreen(key: UniqueKey(), forceNew: true),
-                      ),
-                    );
-                    _refreshPlayerSessionCount();
-                  },
-                  backgroundColor: AppColors.accentGreen,
-                  elevation: 0,
-                  icon: const Icon(
-                    Icons.video_library,
-                    color: Color(0xFF0B0F19),
-                  ),
-                  label: Text(
-                    _myRequiredVideoCount != null && _myRequiredVideoCount! > 0
-                        ? l.fabUploadVideos(_myRequiredVideoCount!)
-                        : l.fabUpload,
-                    style: const TextStyle(
-                      color: Color(0xFF0B0F19),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                  ),
-                )
-              : null,
-          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _currentIndex,
             onTap: (index) => setState(() => _currentIndex = index),
@@ -2198,16 +2238,277 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 class ScoutDashboardScreen extends StatefulWidget {
-  const ScoutDashboardScreen({super.key, required this.user});
+  const ScoutDashboardScreen({
+    super.key,
+    required this.user,
+    this.onOpenExplore,
+  });
 
   final AuthenticatedUser user;
+  final VoidCallback? onOpenExplore;
 
   @override
   State<ScoutDashboardScreen> createState() => _ScoutDashboardScreenState();
 }
 
+class _HomePlayerQuickActionsRow extends StatelessWidget {
+  const _HomePlayerQuickActionsRow({
+    required this.horizontal,
+    required this.uploadLabel,
+    required this.compareLabel,
+    required this.exploreLabel,
+    required this.onUpload,
+    required this.onCompare,
+    required this.onExplore,
+  });
+
+  final double horizontal;
+  final String uploadLabel;
+  final String compareLabel;
+  final String exploreLabel;
+  final VoidCallback onUpload;
+  final VoidCallback onCompare;
+  final VoidCallback onExplore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: _HomeQuickActionTile(
+              icon: Icons.video_library_rounded,
+              label: uploadLabel,
+              onPressed: onUpload,
+              compact: true,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _HomeQuickActionTile(
+              icon: Icons.compare_arrows_rounded,
+              label: compareLabel,
+              onPressed: onCompare,
+              compact: true,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _HomeQuickActionTile(
+              icon: Icons.manage_search_rounded,
+              label: exploreLabel,
+              onPressed: onExplore,
+              compact: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeQuickActionsRow extends StatelessWidget {
+  const _HomeQuickActionsRow({
+    required this.horizontal,
+    required this.compareLabel,
+    required this.exploreLabel,
+    required this.onCompare,
+    required this.onExplore,
+  });
+
+  final double horizontal;
+  final String compareLabel;
+  final String exploreLabel;
+  final VoidCallback onCompare;
+  final VoidCallback onExplore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: _HomeQuickActionTile(
+              icon: Icons.compare_arrows_rounded,
+              label: compareLabel,
+              onPressed: onCompare,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _HomeQuickActionTile(
+              icon: Icons.manage_search_rounded,
+              label: exploreLabel,
+              onPressed: onExplore,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeQuickActionTile extends StatelessWidget {
+  const _HomeQuickActionTile({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.compact = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: kElevatedCard,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: kPitchGreen.withValues(alpha: 0.45)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: kPitchGreen, size: 28),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: compact ? 12 : 15,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeCompareEntryButton extends StatelessWidget {
+  const _HomeCompareEntryButton({
+    required this.title,
+    required this.subtitle,
+    required this.onPressed,
+    required this.horizontal,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onPressed;
+  final double horizontal;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(horizontal, 4, horizontal, 8),
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          side: BorderSide(color: kPitchGreen.withValues(alpha: 0.55)),
+          backgroundColor: kElevatedCard,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: kPitchGreen.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.compare_arrows_rounded,
+                color: kPitchGreen,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white.withValues(alpha: 0.45),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+PlayerListItem _playerListItemFromMultiVideo(MultiVideoPlayer p) {
+  return PlayerListItem.fromJson({
+    'id': p.id,
+    'user_id': p.userId,
+    'name': p.name,
+    'age': p.age,
+    'position': p.position,
+    'overall_rating': p.overallRating,
+    'ai_scout_report': p.aiSummaryReport,
+    'source': 'multivideo',
+    'skill_scores': p.skillScores,
+    'slot_breakdown': p.slotBreakdown,
+    'analysis_version': p.analysisVersion,
+    'pace': p.pace,
+    'finishing': p.finishing,
+    'passing': p.passing,
+    'dribbling': p.dribbling,
+    'defending': p.defending,
+    'strength': p.strength,
+    'physical_attributes': p.physicalAttributes,
+    'updated_at': p.updatedAt,
+  });
+}
+
 class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
   Future<List<PlayerListItem>>? _playersFuture;
+  PlayerListItem? _compareAnchorPlayer;
+  List<PlayerListItem> _myAnalysesForCompare = const [];
+  bool _myAnalysesLoading = true;
 
   @override
   void initState() {
@@ -2242,37 +2543,205 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
         r != 'Rapor oluşturulamadı';
   }
 
-  /// Ana sayfa öne çıkanlar — Keşfet ile aynı rapor filtresi; futbolcu kendi profilini görür.
-  List<PlayerListItem> _featuredCarouselPlayers(
+  /// Futbolcu ana sayfa — yalnızca kendi tamamlanmış analiz oturumları.
+  List<PlayerListItem> _playerFeaturedCarousel(
     List<PlayerListItem> players,
-    String role,
     int userId,
   ) {
-    var list = players.where(_hasPublicScoutReport).toList();
-    final isFutbolcu = role.toLowerCase() == 'futbolcu';
-    if (isFutbolcu) {
-      list.sort((a, b) {
-        final aMine = a.userId == userId;
-        final bMine = b.userId == userId;
-        if (aMine != bMine) return aMine ? -1 : 1;
-        return b.overallRating.compareTo(a.overallRating);
-      });
-    } else {
-      list = list.where((p) => p.userId != userId).toList()
-        ..sort((a, b) => b.overallRating.compareTo(a.overallRating));
-    }
-    return list.take(12).toList();
+    return players
+        .where((p) => p.userId == userId && _hasPublicScoutReport(p))
+        .toList()
+      ..sort((a, b) => b.overallRating.compareTo(a.overallRating));
+  }
+
+  /// Scout ana sayfa öne çıkanlar.
+  List<PlayerListItem> _scoutFeaturedCarousel(
+    List<PlayerListItem> players,
+    int userId,
+  ) {
+    return players
+        .where((p) => p.userId != userId && _hasPublicScoutReport(p))
+        .toList()
+      ..sort((a, b) => b.overallRating.compareTo(a.overallRating));
+  }
+
+  Future<void> _openVideoUpload(BuildContext context) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MultiUploadScreen(key: UniqueKey(), forceNew: true),
+      ),
+    );
+    _reloadPlayers();
+  }
+
+  HomeMergedStatsLabels _playerStatsLabels(L10n l) {
+    return HomeMergedStatsLabels(
+      sectionTitle: l.sectionMyStats,
+      ratingOverall: l.ratingOverall,
+      statPace: l.statPace,
+      statShooting: l.statShooting,
+      statPassing: l.statPassing,
+      statDribbling: l.statDribbling,
+      statDefending: l.statDefending,
+      statPhysical: l.statPhysical,
+      myStatsEmptyHint: l.myStatsEmptyHint,
+      shareStats: l.shareStats,
+      shareFailed: l.shareFailed,
+      appName: AppConstants.appName,
+      ovrRise7d: l.homeOvrRise7d,
+    );
   }
 
   /// Tüm analizlerden özellik bazlı en güncel ölçümler → ana sayfa notifier.
   Future<void> _loadLatestAnalysis() async {
+    if (mounted) setState(() => _myAnalysesLoading = true);
     try {
       final mine = await MultiUploadService.listMyAnalyses();
       myAnalysisSessionCountNotifier.value = mine.length;
       homeMergedStatsNotifier.value = buildMergedLatestSixStats(mine);
+
+      final completed = mine.where((p) => p.isComplete).toList()
+        ..sort((a, b) {
+          final da = a.updatedAt ?? a.createdAt ?? '';
+          final db = b.updatedAt ?? b.createdAt ?? '';
+          return db.compareTo(da);
+        });
+      final mapped =
+          completed.map(_playerListItemFromMultiVideo).toList(growable: false);
+      if (!mounted) return;
+      setState(() {
+        _myAnalysesForCompare = mapped;
+        _compareAnchorPlayer = mapped.isNotEmpty ? mapped.first : null;
+      });
     } catch (_) {
       homeMergedStatsNotifier.value = null;
+      if (!mounted) return;
+      setState(() {
+        _myAnalysesForCompare = const [];
+        _compareAnchorPlayer = null;
+      });
+    } finally {
+      if (mounted) setState(() => _myAnalysesLoading = false);
     }
+  }
+
+  void _openPlayerCompareHub(
+    BuildContext context,
+    List<PlayerListItem> discoverPool,
+  ) {
+    final pool = <String, PlayerListItem>{};
+    for (final p in discoverPool.where(_hasPublicScoutReport)) {
+      pool['${p.source}:${p.id}'] = p;
+    }
+    for (final p in _myAnalysesForCompare) {
+      pool['${p.source}:${p.id}'] = p;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerCompareScreen(
+          allPlayers: pool.values.toList(),
+        ),
+      ),
+    );
+  }
+
+  void _openScoutCompareHub(
+    BuildContext context,
+    List<PlayerListItem> discoverPool,
+  ) {
+    final pool = discoverPool.where(_hasPublicScoutReport).toList()
+      ..sort((a, b) => b.overallRating.compareTo(a.overallRating));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerCompareScreen(
+          allPlayers: pool,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeaturedCarouselSection({
+    required double horizontal,
+    required bool playersLoading,
+    required bool loadFailed,
+    required List<PlayerListItem> carousel,
+    required VoidCallback onRetry,
+    required String loadHint,
+    required String retryLabel,
+    required String emptyHint,
+  }) {
+    if (playersLoading) {
+      return ScoutHomeCarouselSkeleton(horizontal: horizontal);
+    }
+    return SizedBox(
+      height: 190,
+      child: loadFailed
+          ? Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: horizontal),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      loadHint,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.72),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: onRetry,
+                      child: Text(
+                        retryLabel,
+                        style: const TextStyle(
+                          color: kPitchGreen,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : carousel.isEmpty
+          ? Padding(
+              padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 16),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.person_search_rounded,
+                      color: Colors.white.withValues(alpha: 0.3),
+                      size: 40,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      emptyHint,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.45),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : ListView.separated(
+              padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 22),
+              physics: const BouncingScrollPhysics(),
+              scrollDirection: Axis.horizontal,
+              itemCount: carousel.length,
+              itemBuilder: (context, index) =>
+                  CarouselPlayerCard(player: carousel[index]),
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
+            ),
+    );
   }
 
   @override
@@ -2290,21 +2759,34 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                 playerSnap.hasData
             ? playerSnap.data!
             : <PlayerListItem>[];
+        final playersLoading =
+            playerSnap.connectionState == ConnectionState.waiting;
         final loadFailed = playerSnap.hasError;
-        final carousel = _featuredCarouselPlayers(
-          players,
-          role,
-          widget.user.id,
-        );
-
         return ValueListenableBuilder<MergedLatestSixStats?>(
           valueListenable: homeMergedStatsNotifier,
           builder: (context, merged, _) {
             final isPlayer = role.toLowerCase() == 'futbolcu';
+            final isScout = !isPlayer;
+            final carousel = (isPlayer
+                    ? _playerFeaturedCarousel(players, widget.user.id)
+                    : _scoutFeaturedCarousel(players, widget.user.id))
+                .take(12)
+                .toList();
+            final carouselTitle =
+                isPlayer ? l.homeMyAnalyses : l.dashboardPoolPreview;
+            final carouselEmptyHint =
+                isPlayer ? l.homeMyAnalysesEmpty : l.rosterEmptyHint;
             final mergedForUi = merged ??
                 (isPlayer
                     ? const MergedLatestSixStats(sessionCount: 0, overallRating: 0)
                     : null);
+            final scoutPool = players.where(_hasPublicScoutReport).toList()
+              ..sort((a, b) => b.overallRating.compareTo(a.overallRating));
+            const scoutHomePreviewLimit = 5;
+            final scoutPreviewPlayers =
+                scoutPool.take(scoutHomePreviewLimit).toList();
+            final scoutHasMorePlayers =
+                scoutPool.length > scoutHomePreviewLimit;
 
             return SafeArea(
               child: CustomScrollView(
@@ -2327,14 +2809,6 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                               color: Colors.white,
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            l.accountType(role),
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.72),
-                              height: 1.4,
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -2373,182 +2847,226 @@ class _ScoutDashboardScreenState extends State<ScoutDashboardScreen> {
                       ),
                     ),
                   ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: horizontal),
-                      child: _SectionTitle(
-                        title: l.dashboardPoolPreview,
-                          trailing: Text(
-                            loadFailed ? '!' : '${players.length}',
-                            style: TextStyle(
-                              color: loadFailed
-                                  ? Colors.redAccent
-                                  : Colors.white.withValues(alpha: 0.65),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                  if (isScout)
+                    SliverToBoxAdapter(
+                      child: _HomeQuickActionsRow(
+                        horizontal: horizontal,
+                        compareLabel: l.homeQuickCompare,
+                        exploreLabel: l.homeQuickExplore,
+                        onCompare: () => _openScoutCompareHub(context, players),
+                        onExplore: widget.onOpenExplore ?? () {},
+                      ),
+                    ),
+                  if (isPlayer)
+                    SliverToBoxAdapter(
+                      child: _HomePlayerQuickActionsRow(
+                        horizontal: horizontal,
+                        uploadLabel: l.homeQuickUpload,
+                        compareLabel: l.homeQuickCompare,
+                        exploreLabel: l.homeQuickExplore,
+                        onUpload: () => _openVideoUpload(context),
+                        onCompare: () => _openPlayerCompareHub(context, players),
+                        onExplore: widget.onOpenExplore ?? () {},
+                      ),
+                    ),
+                  if (isPlayer)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          horizontal,
+                          4,
+                          horizontal,
+                          8,
+                        ),
+                        child: _myAnalysesLoading
+                            ? const PlayerHomeMergedStatsSkeleton()
+                            : HomeMergedStatsSection(
+                                merged: mergedForUi!,
+                                labels: _playerStatsLabels(l),
+                                playerName: widget.user.displayName,
+                              ),
+                      ),
+                    ),
+                  if (!isPlayer) ...[
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: horizontal),
+                        child: _SectionTitle(
+                          title: carouselTitle,
+                          trailing: playersLoading
+                              ? const SkeletonBone(width: 28, height: 14)
+                              : Text(
+                                  loadFailed ? '!' : '${carousel.length}',
+                                  style: TextStyle(
+                                    color: loadFailed
+                                        ? Colors.redAccent
+                                        : Colors.white.withValues(
+                                            alpha: 0.65,
+                                          ),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                         ),
                       ),
                     ),
                     SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 190,
-                        child: loadFailed
-                          ? Center(
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: horizontal,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      l.playersLoadHint,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.72,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    TextButton(
-                                      onPressed: _reloadPlayers,
-                                      child: Text(
-                                        l.tapRetryPlayers,
-                                        style: const TextStyle(
-                                          color: kPitchGreen,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : carousel.isEmpty
-                          ? Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                horizontal,
-                                8,
-                                horizontal,
-                                16,
-                              ),
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.person_search_rounded,
-                                      color: Colors.white.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                      size: 40,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      l.rosterEmptyHint,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.45,
-                                        ),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : ListView.separated(
-                              padding: EdgeInsets.fromLTRB(
-                                horizontal,
-                                12,
-                                horizontal,
-                                22,
-                              ),
-                              physics: const BouncingScrollPhysics(),
-                              scrollDirection: Axis.horizontal,
-                              itemCount: carousel.length,
-                              itemBuilder: (context, index) =>
-                                  CarouselPlayerCard(player: carousel[index]),
-                              separatorBuilder: (context, index) =>
-                                  const SizedBox(width: 12),
-                            ),
+                      child: _buildFeaturedCarouselSection(
+                        horizontal: horizontal,
+                        playersLoading: playersLoading,
+                        loadFailed: loadFailed,
+                        carousel: carousel,
+                        onRetry: _reloadPlayers,
+                        loadHint: l.playersLoadHint,
+                        retryLabel: l.tapRetryPlayers,
+                        emptyHint: carouselEmptyHint,
                       ),
                     ),
-                  if (isPlayer && mergedForUi != null)
+                  ],
+                  if (isScout &&
+                      (playersLoading ||
+                          scoutPreviewPlayers.isNotEmpty ||
+                          loadFailed))
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: horizontal),
+                        child: _SectionTitle(
+                          title: l.registeredPlayersSection,
+                          trailing: playersLoading || !scoutHasMorePlayers
+                              ? null
+                              : TextButton(
+                                  onPressed: widget.onOpenExplore,
+                                  child: Text(
+                                    l.homeSeeAllInExplore,
+                                    style: const TextStyle(
+                                      color: kPitchGreen,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  if (isScout && playersLoading)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          horizontal,
+                          10,
+                          horizontal,
+                          20,
+                        ),
+                        child: const ScoutHomeListSkeleton(),
+                      ),
+                    ),
+                  if (isPlayer) ...[
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: EdgeInsets.fromLTRB(
                           horizontal,
                           8,
                           horizontal,
-                          12,
+                          0,
                         ),
-                        child: HomeMergedStatsSection(
-                          merged: mergedForUi,
-                          labels: HomeMergedStatsLabels(
-                            sectionTitle: l.sectionMyStats,
-                            ratingOverall: l.ratingOverall,
-                            statPace: l.statPace,
-                            statShooting: l.statShooting,
-                            statPassing: l.statPassing,
-                            statDribbling: l.statDribbling,
-                            statDefending: l.statDefending,
-                            statPhysical: l.statPhysical,
-                            myStatsEmptyHint: l.myStatsEmptyHint,
-                            shareStats: l.shareStats,
-                            shareFailed: l.shareFailed,
-                            appName: AppConstants.appName,
-                          ),
-                          playerName: widget.user.displayName,
-                        ),
-                      ),
-                    ),
-                  if (!isPlayer)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: horizontal),
                         child: _SectionTitle(
-                          title: l.registeredPlayersSection,
+                          title: carouselTitle,
+                          trailing: playersLoading
+                              ? const SkeletonBone(width: 28, height: 14)
+                              : Text(
+                                  '${carousel.length}',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(
+                                      alpha: 0.65,
+                                    ),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                         ),
                       ),
                     ),
+                    SliverToBoxAdapter(
+                      child: _buildFeaturedCarouselSection(
+                        horizontal: horizontal,
+                        playersLoading: playersLoading,
+                        loadFailed: loadFailed,
+                        carousel: carousel,
+                        onRetry: _reloadPlayers,
+                        loadHint: l.playersLoadHint,
+                        retryLabel: l.tapRetryPlayers,
+                        emptyHint: carouselEmptyHint,
+                      ),
+                    ),
+                  ],
                   SliverPadding(
                     padding: EdgeInsets.fromLTRB(
                       horizontal,
                       10,
                       horizontal,
-                      isPlayer ? 100 : 28,
+                      28,
                     ),
-                    sliver: isPlayer
+                    sliver: !isScout
                         ? const SliverToBoxAdapter(child: SizedBox.shrink())
-                        : players.isEmpty
-                        ? SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 24,
-                                horizontal: 8,
-                              ),
-                              child: Text(
-                                loadFailed
-                                    ? l.playersLoadHint
-                                    : l.rosterEmptyHint,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.65),
+                        : (playersLoading
+                            ? const SliverToBoxAdapter(child: SizedBox.shrink())
+                            : loadFailed
+                            ? SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 24,
+                                    horizontal: 8,
+                                  ),
+                                  child: Text(
+                                    l.playersLoadHint,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.65,
+                                      ),
+                                    ),
+                                  ),
                                 ),
+                              )
+                            : scoutPreviewPlayers.isEmpty
+                            ? const SliverToBoxAdapter(child: SizedBox.shrink())
+                            : SliverList.separated(
+                                itemBuilder: (context, index) =>
+                                    DashboardPlayerRow(
+                                  player: scoutPreviewPlayers[index],
+                                ),
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 10),
+                                itemCount: scoutPreviewPlayers.length,
+                              )),
+                  ),
+                  if (isScout &&
+                      scoutHasMorePlayers &&
+                      scoutPreviewPlayers.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          horizontal,
+                          4,
+                          horizontal,
+                          20,
+                        ),
+                        child: Center(
+                          child: TextButton.icon(
+                            onPressed: widget.onOpenExplore,
+                            icon: const Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 18,
+                              color: kPitchGreen,
+                            ),
+                            label: Text(
+                              l.homeSeeAllInExplore,
+                              style: const TextStyle(
+                                color: kPitchGreen,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          )
-                        : SliverList.separated(
-                            itemBuilder: (context, index) =>
-                                DashboardPlayerRow(player: players[index]),
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(height: 10),
-                            itemCount: players.length,
                           ),
-                  ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             );
@@ -2834,6 +3352,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   RangeValues _ageRange = const RangeValues(_ageSliderMin, _ageSliderMax);
   RangeValues _ovrRange = const RangeValues(_ovrSliderMin, _ovrSliderMax);
   bool _rising7d = false;
+  bool _filtersExpanded = false;
+  int? _catalogPlayerCount;
 
   static const List<String> _positions = [
     'Tum',
@@ -2848,8 +3368,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
-    // YENİ: İKİ LİSTEYİ BİRLEŞTİRECEK MUCİZE METODU ÇAĞIRIYORUZ
     _playersFuture = _fetchAllPlayers();
+    _syncCatalogCount();
     playersRefreshNotifier.addListener(_onPlayersRefreshSignal);
   }
 
@@ -2860,7 +3380,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
     super.dispose();
   }
 
-  // AI analizi tamamlanmis oyuncular — sunucu filtreleri ile
+  List<PlayerListItem> _discoverReady(List<PlayerListItem> players) {
+    return players
+        .where(
+          (p) =>
+              p.aiScoutReport != null &&
+              p.aiScoutReport!.trim().isNotEmpty &&
+              p.aiScoutReport != 'Rapor oluşturulamadı',
+        )
+        .toList();
+  }
+
   Future<List<PlayerListItem>> _fetchAllPlayers() async {
     try {
       final ageActive =
@@ -2878,25 +3408,64 @@ class _ExploreScreenState extends State<ExploreScreen> {
         rising7d: _rising7d,
       );
 
-      return players.where((p) =>
-        p.aiScoutReport != null &&
-        p.aiScoutReport!.trim().isNotEmpty &&
-        p.aiScoutReport != 'Rapor oluşturulamadı'
-      ).toList();
+      return _discoverReady(players);
     } catch (e) {
       debugPrint('Gerçek oyuncular çekilemedi: $e');
       return [];
     }
   }
+
+  Future<void> _syncCatalogCount() async {
+    try {
+      final players = await BackendApi.fetchPlayersWithFilters();
+      if (!mounted) return;
+      setState(() => _catalogPlayerCount = _discoverReady(players).length);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _catalogPlayerCount = 0);
+    }
+  }
+
+  bool _hasActiveFilters() {
+    return _query.isNotEmpty ||
+        _selectedCity != null ||
+        _selectedPosition != 'Tum' ||
+        _ageRange.start > _ageSliderMin ||
+        _ageRange.end < _ageSliderMax ||
+        _ovrRange.start > _ovrSliderMin ||
+        _ovrRange.end < _ovrSliderMax ||
+        _rising7d;
+  }
+
+  void _resetFilters() {
+    _searchController.clear();
+    setState(() {
+      _query = '';
+      _selectedCity = null;
+      _selectedPosition = 'Tum';
+      _ageRange = const RangeValues(_ageSliderMin, _ageSliderMax);
+      _ovrRange = const RangeValues(_ovrSliderMin, _ovrSliderMax);
+      _rising7d = false;
+    });
+    _refresh();
+  }
+
   void _onPlayersRefreshSignal() {
     if (!mounted) return;
-    setState(() => _playersFuture = _fetchAllPlayers());
+    final next = _fetchAllPlayers();
+    setState(() {
+      _playersFuture = next;
+    });
+    unawaited(_syncCatalogCount());
   }
 
   Future<void> _refresh() async {
     final next = _fetchAllPlayers();
-    setState(() => _playersFuture = next);
-    await next;
+    if (!mounted) return;
+    setState(() {
+      _playersFuture = next;
+    });
+    await Future.wait([next, _syncCatalogCount()]);
   }
 
   List<PlayerListItem> _applyFilter(List<PlayerListItem> raw) {
@@ -2951,42 +3520,44 @@ class _ExploreScreenState extends State<ExploreScreen> {
           }
 
           final filtered = _applyFilter(snap.data ?? []);
+          final filterNoResults =
+              _hasActiveFilters() || (_catalogPlayerCount ?? 0) > 0;
 
-          Widget filters() => Column(
+          Widget searchBar() => TextField(
+            controller: _searchController,
+            style: const TextStyle(color: Colors.white),
+            textInputAction: TextInputAction.search,
+            onChanged: (value) => setState(() => _query = value.trim()),
+            decoration: InputDecoration(
+              hintText: l.searchHint,
+              hintStyle: TextStyle(
+                color: Colors.white.withValues(alpha: 0.65),
+              ),
+              prefixIcon: const Icon(Icons.search, color: kPitchGreen),
+              filled: true,
+              fillColor: kElevatedCard,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.white12),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Colors.white12),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kPitchGreen),
+              ),
+            ),
+          );
+
+          Widget expandedFilters() => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.white),
-                textInputAction: TextInputAction.search,
-                onChanged: (value) => setState(() => _query = value.trim()),
-                decoration: InputDecoration(
-                  hintText: l.searchHint,
-                  hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.65),
-                  ),
-                  prefixIcon: const Icon(Icons.search, color: kPitchGreen),
-                  filled: true,
-                  fillColor: kElevatedCard,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Colors.white12),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Colors.white12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: kPitchGreen),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
               DropdownButtonFormField<String?>(
                 value: _selectedCity,
                 isExpanded: true,
@@ -3122,20 +3693,88 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
               padding: EdgeInsets.fromLTRB(horizontal, 10, horizontal, 28),
               children: [
-                filters(),
+                searchBar(),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      setState(() => _filtersExpanded = !_filtersExpanded),
+                  icon: Icon(
+                    _filtersExpanded
+                        ? Icons.expand_less_rounded
+                        : Icons.tune_rounded,
+                    size: 20,
+                    color: _hasActiveFilters() ? kPitchGreen : Colors.white70,
+                  ),
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        l.exploreFilterTitle,
+                        style: TextStyle(
+                          color: _hasActiveFilters()
+                              ? kPitchGreen
+                              : Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (_hasActiveFilters()) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: kPitchGreen.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            '•',
+                            style: TextStyle(
+                              color: kPitchGreen,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(
+                      color: _hasActiveFilters()
+                          ? kPitchGreen.withValues(alpha: 0.6)
+                          : Colors.white24,
+                    ),
+                    backgroundColor: kElevatedCard,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+                if (_filtersExpanded) ...[
+                  const SizedBox(height: 10),
+                  expandedFilters(),
+                ],
                 if (filtered.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 60),
                     child: Column(
                       children: [
                         Icon(
-                          Icons.search_off_rounded,
+                          filterNoResults
+                              ? Icons.filter_alt_off_outlined
+                              : Icons.search_off_rounded,
                           color: Colors.white.withValues(alpha: 0.3),
                           size: 50,
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          l.rosterEmptyHint,
+                          filterNoResults
+                              ? l.exploreFilterEmptyHint
+                              : l.rosterEmptyHint,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.78),
@@ -3143,6 +3782,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             height: 1.45,
                           ),
                         ),
+                        if (filterNoResults) ...[
+                          const SizedBox(height: 16),
+                          TextButton.icon(
+                            onPressed: _resetFilters,
+                            icon: const Icon(
+                              Icons.clear_all_rounded,
+                              color: kPitchGreen,
+                              size: 20,
+                            ),
+                            label: Text(
+                              l.clearFilters,
+                              style: const TextStyle(
+                                color: kPitchGreen,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   )
@@ -3328,40 +3985,137 @@ String _kvkkExportErrorMessage(Object e) {
   return 'Veri indirilemedi. Lütfen tekrar deneyin.';
 }
 
-class ClubProfileScreen extends StatelessWidget {
-  const ClubProfileScreen({super.key});
-
-  Future<void> _handleLogoutTap(BuildContext context) async {
-    final l = L10nScope.of(context);
-    final bool? shouldLogout = await showCupertinoDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return CupertinoAlertDialog(
-          title: Text(l.logoutTitle),
-          content: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(l.logoutMessage),
+Future<void> _profileHandleLogout(BuildContext context) async {
+  final l = L10nScope.of(context);
+  final bool? shouldLogout = await showCupertinoDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      return CupertinoAlertDialog(
+        title: Text(l.logoutTitle),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(l.logoutMessage),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l.cancel),
           ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(l.cancel),
-            ),
-            CupertinoDialogAction(
-              isDestructiveAction: true,
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(l.confirm),
-            ),
-          ],
-        );
-      },
-    );
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l.confirm),
+          ),
+        ],
+      );
+    },
+  );
 
-    if (shouldLogout == true && context.mounted) {
-      await SessionStore.clear();
-      appNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+  if (shouldLogout == true && context.mounted) {
+    await SessionStore.clear();
+    appNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+  }
+}
+
+void _profileShowDeleteAccountDialog(BuildContext context) {
+  final l = L10nScope.of(context);
+  showCupertinoDialog(
+    context: context,
+    builder: (dialogContext) => CupertinoAlertDialog(
+      title: Text(l.en ? 'Delete Account?' : 'Hesabı Sil?'),
+      content: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          l.en
+              ? 'Your account and all data will be permanently deleted. This cannot be undone.'
+              : 'Hesabınız ve tüm verileriniz kalıcı olarak silinecek. Bu işlem geri alınamaz.',
+        ),
+      ),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: Text(l.cancel),
+        ),
+        CupertinoDialogAction(
+          isDestructiveAction: true,
+          onPressed: () async {
+            Navigator.pop(dialogContext);
+
+            bool deleted = false;
+            String errorMsg = '';
+
+            try {
+              await BackendApi.deleteMyAccount();
+              deleted = true;
+            } catch (e) {
+              errorMsg = '$e';
+            }
+
+            if (context.mounted) {
+              if (deleted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ Hesabınız ve tüm verileriniz silindi'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('❌ Hesap silinemedi: $errorMsg'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 5),
+                  ),
+                );
+              }
+
+              appNavigatorKey.currentState?.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            }
+          },
+          child: Text(l.en ? 'Delete Account' : 'Hesabı Sil'),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _profileExportKvkkData(BuildContext context) async {
+  final shareOrigin = ShareHelper.originFor(context);
+  try {
+    final data = await BackendApi.exportMyData();
+    final dir = await getTemporaryDirectory();
+    final f = File(
+      '${dir.path}/scoutiq_export_${DateTime.now().millisecondsSinceEpoch}.json',
+    );
+    await f.writeAsString(const JsonEncoder.withIndent('  ').convert(data));
+    if (!context.mounted) return;
+    await ShareHelper.shareXFiles(
+      [XFile(f.path, mimeType: 'application/json')],
+      context: context,
+      text: 'Scoutiq veri export',
+      sharePositionOrigin: shareOrigin,
+    );
+  } catch (e) {
+    if (context.mounted) {
+      final msg = _kvkkExportErrorMessage(e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            msg,
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF2A3448),
+        ),
+      );
     }
   }
+}
+
+class ClubProfileScreen extends StatelessWidget {
+  const ClubProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -3506,145 +4260,67 @@ class ClubProfileScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              if (user.role == 'Scout') ...[
-                _ProfileOptionTile(
-                  icon: Icons.history_rounded,
-                  title: l.analysisHistory,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AnalysisHistoryScreen(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _ProfileOptionTile(
-                  icon: Icons.visibility_rounded,
-                  title: l.en ? 'My Watchlist' : 'İzleme Listem',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const WatchlistScreen(),
-                    ),
-                  ),
-                ),
-              ] else ...[
-                _ProfileOptionTile(
-                  icon: Icons.bar_chart_rounded,
-                  title: l.myStatistics,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MyStatisticsScreen(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _ProfileOptionTile(
-                  icon: Icons.video_library_rounded,
-                  title: l.en ? 'My Videos' : 'Yüklediğim Videolar',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MyVideosScreen(),
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-              _ProfileOptionTile(
-                icon: Icons.notifications_outlined,
-                title: l.notifications,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-                ),
-              ),
-              const SizedBox(height: 10),
-              _ProfileOptionTile(
-                icon: Icons.settings_rounded,
-                title: l.settings,
-                onTap: () => _openSettings(context),
-              ),
-              const SizedBox(height: 10),
-              _ProfileOptionTile(
-                icon: Icons.download_rounded,
-                title: l.en ? 'Export My Data (KVKK)' : 'Verilerimi İndir (KVKK)',
-                onTap: () async {
-                  final shareOrigin = ShareHelper.originFor(context);
-                  try {
-                    final data = await BackendApi.exportMyData();
-                    final dir = await getTemporaryDirectory();
-                    final f = File(
-                      '${dir.path}/scoutiq_export_${DateTime.now().millisecondsSinceEpoch}.json',
-                    );
-                    await f.writeAsString(const JsonEncoder.withIndent('  ').convert(data));
-                    if (!context.mounted) return;
-                    await ShareHelper.shareXFiles(
-                      [XFile(f.path, mimeType: 'application/json')],
-                      context: context,
-                      text: 'Scoutiq veri export',
-                      sharePositionOrigin: shareOrigin,
-                    );
-                  } catch (e) {
-                    if (context.mounted) {
-                      final msg = _kvkkExportErrorMessage(e);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            msg,
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          backgroundColor: const Color(0xFF2A3448),
+              _ProfileMenuGroup(
+                items: [
+                  if (user.role == 'Scout') ...[
+                    _ProfileMenuItem(
+                      icon: Icons.history_rounded,
+                      title: l.analysisHistory,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AnalysisHistoryScreen(),
                         ),
-                      );
-                    }
-                  }
-                },
-              ),
-              if ((currentUserNotifier.value?.role ?? '').toLowerCase() == 'scout') ...[
-                const SizedBox(height: 10),
-                _ProfileOptionTile(
-                  icon: Icons.link_rounded,
-                  title: l.en ? 'Invite Scouts' : 'Scout Davet Linki',
-                  onTap: () async {
-                    try {
-                      final ref = await BackendApi.fetchReferralLink();
-                      final code = '${ref['referral_code'] ?? ''}'.trim();
-                      final text = '${ref['share_text'] ?? ref['https_link']}';
-                      if (!context.mounted) return;
-                      if (code.isNotEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          AppSnackBars.success(
-                            'Davet kodunuz: $code',
-                            duration: const Duration(seconds: 4),
-                          ),
-                        );
-                      }
-                      await ShareHelper.shareText(text, context: context);
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Davet linki alınamadı: $e')),
-                        );
-                      }
-                    }
-                  },
-                ),
-              ],
-              const SizedBox(height: 16),
-              _ProfileOptionTile(
-                icon: Icons.logout_rounded,
-                title: l.logout,
-                isDanger: true,
-                onTap: () => _handleLogoutTap(context),
-              ),
-              const SizedBox(height: 10),
-              _ProfileOptionTile(
-                icon: Icons.delete_forever_rounded,
-                title: l.en ? 'Delete Account' : 'Hesabımı Sil',
-                isDanger: true,
-                onTap: () => _showDeleteAccountDialog(context),
+                      ),
+                    ),
+                    _ProfileMenuItem(
+                      icon: Icons.visibility_rounded,
+                      title: l.en ? 'My Watchlist' : 'İzleme Listem',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const WatchlistScreen(),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    _ProfileMenuItem(
+                      icon: Icons.bar_chart_rounded,
+                      title: l.myStatistics,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MyStatisticsScreen(),
+                        ),
+                      ),
+                    ),
+                    _ProfileMenuItem(
+                      icon: Icons.video_library_rounded,
+                      title: l.en ? 'My Videos' : 'Yüklediğim Videolar',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MyVideosScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                  _ProfileMenuItem(
+                    icon: Icons.notifications_outlined,
+                    title: l.notifications,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationsScreen(),
+                      ),
+                    ),
+                  ),
+                  _ProfileMenuItem(
+                    icon: Icons.settings_rounded,
+                    title: l.settings,
+                    onTap: () => _openSettings(context),
+                  ),
+                ],
               ),
             ],
           ),
@@ -3680,68 +4356,6 @@ class ClubProfileScreen extends StatelessWidget {
     );
   }
 
-  void _showDeleteAccountDialog(BuildContext context) {
-    final l = L10nScope.of(context);
-    showCupertinoDialog(
-      context: context,
-      builder: (dialogContext) => CupertinoAlertDialog(
-        title: Text(l.en ? 'Delete Account?' : 'Hesabı Sil?'),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(l.en 
-            ? 'Your account and all data will be permanently deleted. This cannot be undone.'
-            : 'Hesabınız ve tüm verileriniz kalıcı olarak silinecek. Bu işlem geri alınamaz.'),
-        ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(l.cancel),
-          ),
-          CupertinoDialogAction(
-            isDestructiveAction: true,
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              
-              bool deleted = false;
-              String errorMsg = '';
-              
-              try {
-                await BackendApi.deleteMyAccount();
-                deleted = true;
-              } catch (e) {
-                errorMsg = '$e';
-              }
-              
-              if (context.mounted) {
-                if (deleted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('✅ Hesabınız ve tüm verileriniz silindi'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ Hesap silinemedi: $errorMsg'),
-                      backgroundColor: Colors.red,
-                      duration: Duration(seconds: 5),
-                    ),
-                  );
-                }
-                
-                appNavigatorKey.currentState?.pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              }
-            },
-            child: Text(l.en ? 'Delete Account' : 'Hesabı Sil'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class LocalSettingsScreen extends StatefulWidget {
@@ -3917,6 +4531,76 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
                     onChanged: _onMobileUploadChanged,
                   ),
                 ),
+                const SizedBox(height: 20),
+                Text(
+                  l.en ? 'Account' : 'Hesap',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.55),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _ProfileMenuGroup(
+                  items: [
+                    _ProfileMenuItem(
+                      icon: Icons.download_rounded,
+                      title: l.en
+                          ? 'Export My Data (KVKK)'
+                          : 'Verilerimi İndir (KVKK)',
+                      onTap: () => _profileExportKvkkData(context),
+                    ),
+                    if ((currentUserNotifier.value?.role ?? '')
+                        .toLowerCase() ==
+                        'scout')
+                      _ProfileMenuItem(
+                        icon: Icons.link_rounded,
+                        title: l.en ? 'Invite Scouts' : 'Scout Davet Linki',
+                        onTap: () async {
+                          try {
+                            final ref = await BackendApi.fetchReferralLink();
+                            final code =
+                                '${ref['referral_code'] ?? ''}'.trim();
+                            final text =
+                                '${ref['share_text'] ?? ref['https_link']}';
+                            if (!context.mounted) return;
+                            if (code.isNotEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                AppSnackBars.success(
+                                  'Davet kodunuz: $code',
+                                  duration: const Duration(seconds: 4),
+                                ),
+                              );
+                            }
+                            await ShareHelper.shareText(
+                              text,
+                              context: context,
+                            );
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Davet linki alınamadı: $e'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    _ProfileMenuItem(
+                      icon: Icons.logout_rounded,
+                      title: l.logout,
+                      isDanger: true,
+                      onTap: () => _profileHandleLogout(context),
+                    ),
+                    _ProfileMenuItem(
+                      icon: Icons.delete_forever_rounded,
+                      title: l.en ? 'Delete Account' : 'Hesabımı Sil',
+                      isDanger: true,
+                      onTap: () => _profileShowDeleteAccountDialog(context),
+                    ),
+                  ],
+                ),
               ],
             ),
     );
@@ -3976,8 +4660,8 @@ class _SettingsCard extends StatelessWidget {
   }
 }
 
-class _ProfileOptionTile extends StatelessWidget {
-  const _ProfileOptionTile({
+class _ProfileMenuItem {
+  const _ProfileMenuItem({
     required this.icon,
     required this.title,
     required this.onTap,
@@ -3988,40 +4672,73 @@ class _ProfileOptionTile extends StatelessWidget {
   final String title;
   final VoidCallback onTap;
   final bool isDanger;
+}
+
+/// Profil / ayarlar: tek kart içinde bölünmüş menü satırları.
+class _ProfileMenuGroup extends StatelessWidget {
+  const _ProfileMenuGroup({required this.items});
+
+  final List<_ProfileMenuItem> items;
 
   @override
   Widget build(BuildContext context) {
-    final color = isDanger ? Colors.redAccent : kPitchGreen;
-    final textColor = isDanger ? Colors.redAccent : Colors.white;
+    return Container(
+      decoration: BoxDecoration(
+        color: kElevatedCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              Divider(
+                height: 1,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            _ProfileMenuRow(item: items[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileMenuRow extends StatelessWidget {
+  const _ProfileMenuRow({required this.item});
+
+  final _ProfileMenuItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = item.isDanger ? Colors.redAccent : kPitchGreen;
+    final textColor = item.isDanger ? Colors.redAccent : Colors.white;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Ink(
+        onTap: item.onTap,
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: kElevatedCard,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white12),
-          ),
           child: Row(
             children: [
-              Icon(icon, color: color),
+              Icon(item.icon, color: color, size: 22),
               const SizedBox(width: 12),
-              Text(
-                title,
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
                 ),
               ),
-              const Spacer(),
               Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.white.withValues(alpha: 0.55),
+                color: Colors.white.withValues(alpha: 0.45),
+                size: 22,
               ),
             ],
           ),
@@ -6064,6 +6781,9 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
   List<ScoutRating> _scoutRatings = [];
   bool _alreadyRated = false;
   int _ratingCount = 0;
+  bool _isInShortlist = false;
+  int? _favoriteShortlistId;
+  bool _favoriteBusy = false;
 
   @override
   void initState() {
@@ -6104,6 +6824,32 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     _loadAllVideoUrls();
     _loadScoutRatings();
     _loadEnrichedDetail();
+    _loadShortlistMembership();
+  }
+
+  Future<void> _loadShortlistMembership() async {
+    final role = (currentUserNotifier.value?.role ?? '').trim().toLowerCase();
+    if (role != 'scout') return;
+    try {
+      final lists = await BackendApi.fetchMyShortlists();
+      if (!mounted) return;
+      int? listId;
+      var inList = false;
+      for (final sl in lists) {
+        for (final it in sl.items) {
+          if (it.playerId == _player.id && it.source == _player.source) {
+            inList = true;
+            listId = sl.id;
+            break;
+          }
+        }
+        if (inList) break;
+      }
+      setState(() {
+        _isInShortlist = inList;
+        _favoriteShortlistId = listId;
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadEnrichedDetail() async {
@@ -6121,26 +6867,76 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
     } catch (_) {}
   }
 
-  Future<void> _addToShortlist() async {
+  Future<void> _toggleFavorite() async {
     final role = (currentUserNotifier.value?.role ?? '').trim().toLowerCase();
-    if (role != 'scout') return;
+    if (role != 'scout' || _favoriteBusy) return;
+    setState(() => _favoriteBusy = true);
+    final l = L10nScope.of(context);
     try {
-      final lists = await BackendApi.fetchMyShortlists();
-      final id = lists.isNotEmpty ? lists.first.id : (await BackendApi.fetchMyShortlists()).first.id;
-      await BackendApi.addToShortlist(shortlistId: id, playerId: _player.id, source: _player.source);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            L10nScope.of(context).addedToFavorites,
-            style: const TextStyle(color: Colors.white),
+      if (_isInShortlist) {
+        var listId = _favoriteShortlistId;
+        if (listId == null) {
+          await _loadShortlistMembership();
+          listId = _favoriteShortlistId;
+        }
+        if (listId == null) return;
+        await BackendApi.removeFromShortlist(
+          shortlistId: listId,
+          playerId: _player.id,
+          source: _player.source,
+        );
+        if (!mounted) return;
+        setState(() {
+          _isInShortlist = false;
+          _favoriteShortlistId = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l.removedFromFavorites,
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFF2A3448),
           ),
-          backgroundColor: const Color(0xFF2A3448),
-        ),
-      );
+        );
+      } else {
+        var lists = await BackendApi.fetchMyShortlists();
+        if (lists.isEmpty) {
+          lists = await BackendApi.fetchMyShortlists();
+        }
+        if (lists.isEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Favori listesi bulunamadı.')),
+          );
+          return;
+        }
+        final listId = lists.first.id;
+        await BackendApi.addToShortlist(
+          shortlistId: listId,
+          playerId: _player.id,
+          source: _player.source,
+        );
+        if (!mounted) return;
+        setState(() {
+          _isInShortlist = true;
+          _favoriteShortlistId = listId;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l.addedToFavorites,
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFF2A3448),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _favoriteBusy = false);
     }
   }
 
@@ -6614,9 +7410,14 @@ class _PlayerDetailScreenState extends State<PlayerDetailScreen> {
           ),
           if (isScout)
             IconButton(
-              icon: const Icon(Icons.favorite_border),
-              tooltip: L10nScope.of(context).addToFavorites,
-              onPressed: _addToShortlist,
+              icon: Icon(
+                _isInShortlist ? Icons.favorite : Icons.favorite_border,
+                color: _isInShortlist ? kPitchGreen : Colors.white70,
+              ),
+              tooltip: _isInShortlist
+                  ? L10nScope.of(context).removeFromFavorites
+                  : L10nScope.of(context).addToFavorites,
+              onPressed: _favoriteBusy ? null : _toggleFavorite,
             ),
         ],
       ),
