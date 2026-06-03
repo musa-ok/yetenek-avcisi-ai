@@ -9,6 +9,7 @@ import 'package:yetenek_avcisi/core/settings/app_settings.dart';
 import 'package:yetenek_avcisi/features/product/product_screens.dart';
 import 'package:yetenek_avcisi/firebase_options.dart';
 import 'package:yetenek_avcisi/core/navigation/app_navigator.dart';
+import 'package:yetenek_avcisi/widgets/in_app_notification_banner.dart';
 
 /// Arka plan / kapali uygulama mesajlari (minimal handler).
 @pragma('vm:entry-point')
@@ -40,14 +41,21 @@ class PushNotificationService {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-        alert: true,
+        alert: false,
         badge: true,
         sound: true,
       );
 
       FirebaseMessaging.onMessage.listen((message) async {
         if (!await AppSettings.areNotificationsEnabled()) return;
-        debugPrint('[FCM] foreground: ${message.notification?.title}');
+        final title = message.notification?.title?.trim();
+        final body = message.notification?.body?.trim();
+        showInAppBanner(
+          title: (title != null && title.isNotEmpty) ? title : 'Scoutiq',
+          body: body,
+          onTap: () => _openNotificationsFromMessage(message),
+        );
+        debugPrint('[FCM] foreground banner: ${message.notification?.title}');
       });
 
       FirebaseMessaging.onMessageOpenedApp.listen(_openNotificationsFromMessage);
@@ -86,6 +94,47 @@ class PushNotificationService {
     nav.push(
       MaterialPageRoute<void>(builder: (_) => const NotificationsScreen()),
     );
+  }
+
+  /// Uygulama açıkken üst banner (FCM ve test).
+  static void showInAppBanner({
+    required String title,
+    String? body,
+    VoidCallback? onTap,
+  }) {
+    InAppNotificationBanner.show(
+      title: title,
+      body: body,
+      onTap: onTap ??
+          () {
+            final nav = appNavigatorKey.currentState;
+            if (nav == null || !nav.mounted) return;
+            nav.push(
+              MaterialPageRoute<void>(builder: (_) => const NotificationsScreen()),
+            );
+          },
+    );
+  }
+
+  /// Ayarlar: banner önizlemesi + (açıksa) sunucuya test kaydı/push.
+  static Future<String> sendTestNotification() async {
+    final enabled = await AppSettings.areNotificationsEnabled();
+    if (!enabled) {
+      return 'Bildirimler kapalı — banner gösterilmez. Açmak için üstteki anahtarı kullan.';
+    }
+
+    showInAppBanner(
+      title: 'Scoutiq Test',
+      body: 'Telefon bildirimleri açık. Gerçek push da böyle görünür.',
+    );
+
+    try {
+      await BackendApi.sendTestNotification();
+      return 'Test bildirimi gönderildi (banner + sunucu kaydı).';
+    } catch (e) {
+      debugPrint('[FCM] test notification backend: $e');
+      return 'Banner gösterildi; sunucu testi başarısız: $e';
+    }
   }
 
   static Future<void> _openSystemNotificationSettings() async {

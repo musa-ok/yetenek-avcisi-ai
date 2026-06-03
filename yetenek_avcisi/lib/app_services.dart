@@ -1539,7 +1539,17 @@ class BackendApi {
     }
     final decoded = json.decode(res.body);
     if (decoded is Map<String, dynamic>) return decoded;
-    return <String, dynamic>{'ok': false, 'message': 'unexpected response'};
+    return {};
+  }
+
+  static Future<void> sendTestNotification() async {
+    final res = await ApiClient.post(
+      '/notifications/test',
+      authRequired: true,
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw _friendlyError(res);
+    }
   }
 
   static Future<Map<String, dynamic>?> fetchMyMultivideoProfile() async {

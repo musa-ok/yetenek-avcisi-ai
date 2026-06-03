@@ -14,7 +14,7 @@ from database import get_db
 from deps import get_current_user, get_optional_user, require_scout
 from services import player_helpers as ph
 from services.notification_helpers import resolve_player_owner_user_id
-from services.notifications import notify_added_to_shortlist, notify_scout_note_on_player
+from services.notifications import notify_added_to_shortlist, notify_scout_note_on_player, create_notification
 from services.player_discovery import discover_players_as_dicts
 from services.slot_scoring import ensure_fifa_six_in_skill_scores
 
@@ -563,3 +563,20 @@ def get_device_notification_status(
         "has_device_token": has_device_token,
         "push_status": has_device_token,
     }
+
+
+@router.post("/notifications/test")
+def send_test_notification(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Giriş yapan kullanıcıya test bildirimi (in-app liste + FCM varsa push)."""
+    row = create_notification(
+        db,
+        user_id=current_user.id,
+        kind="analysis_done",
+        title="Scoutiq test bildirimi",
+        body="Banner ve push hattı kontrolü.",
+        payload={"test": True},
+    )
+    return {"ok": True, "notification_id": row.id}

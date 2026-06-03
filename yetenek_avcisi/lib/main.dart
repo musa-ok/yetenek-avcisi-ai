@@ -287,6 +287,12 @@ class L10n {
       ? 'Phone notifications off. No push on this device; in-app list still available.'
       : 'Telefon bildirimleri kapalı. Push gitmez; Profil → Bildirimler listesi durur.';
 
+  String get testNotification => en ? 'Send test notification' : 'Test bildirimi gönder';
+
+  String get testNotificationSub => en
+      ? 'Preview the in-app banner (requires notifications on).'
+      : 'In-app banner önizlemesi (bildirimler açık olmalı).';
+
   String get mobileUploadEnabledSnack => en
       ? 'You can upload videos on mobile data.'
       : 'Mobil veri ile video yükleyebilirsin.';
@@ -4370,6 +4376,7 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
   bool _mobileUploadAllowed = false;
   bool _loading = true;
   bool _saving = false;
+  bool _testSending = false;
   String? _loadError;
 
   @override
@@ -4441,6 +4448,22 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
       );
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _sendTestNotification() async {
+    final l = L10n(appLanguageNotifier.value);
+    if (_testSending) return;
+    setState(() => _testSending = true);
+    try {
+      final msg = await PushNotificationService.sendTestNotification();
+      if (!mounted) return;
+      _showSettingsSnack(msg, isError: msg.contains('kapalı'));
+    } catch (e) {
+      if (!mounted) return;
+      _showSettingsSnack('${l.settingsLoadFailed} $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _testSending = false);
     }
   }
 
@@ -4519,6 +4542,26 @@ class _LocalSettingsScreenState extends State<LocalSettingsScreen> {
                     activeTrackColor: kPitchGreen.withValues(alpha: 0.45),
                     onChanged: _saving ? null : _onNotificationsChanged,
                   ),
+                ),
+                const SizedBox(height: 10),
+                _SettingsCard(
+                  title: l.testNotification,
+                  subtitle: l.testNotificationSub,
+                  trailing: _testSending
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: kPitchGreen,
+                          ),
+                        )
+                      : IconButton(
+                          onPressed: _sendTestNotification,
+                          icon: const Icon(Icons.send_rounded, color: kPitchGreen),
+                          tooltip: l.testNotification,
+                        ),
+                  onTap: _testSending ? null : _sendTestNotification,
                 ),
                 const SizedBox(height: 10),
                 _SettingsCard(
@@ -4612,15 +4655,17 @@ class _SettingsCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.trailing,
+    this.onTap,
   });
 
   final String title;
   final String subtitle;
   final Widget trailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: kElevatedCard,
@@ -4655,6 +4700,15 @@ class _SettingsCard extends StatelessWidget {
           const SizedBox(width: 10),
           trailing,
         ],
+      ),
+    );
+    if (onTap == null) return card;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: card,
       ),
     );
   }
