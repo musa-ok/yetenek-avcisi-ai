@@ -1542,16 +1542,6 @@ class BackendApi {
     return {};
   }
 
-  static Future<void> sendTestNotification() async {
-    final res = await ApiClient.post(
-      '/notifications/test',
-      authRequired: true,
-    );
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw _friendlyError(res);
-    }
-  }
-
   static Future<Map<String, dynamic>?> fetchMyMultivideoProfile() async {
     final res = await ApiClient.get('/me/multivideo-profile', authRequired: true);
     if (res.statusCode != 200) throw _friendlyError(res);

@@ -116,27 +116,6 @@ class PushNotificationService {
     );
   }
 
-  /// Ayarlar: banner önizlemesi + (açıksa) sunucuya test kaydı/push.
-  static Future<String> sendTestNotification() async {
-    final enabled = await AppSettings.areNotificationsEnabled();
-    if (!enabled) {
-      return 'Bildirimler kapalı — banner gösterilmez. Açmak için üstteki anahtarı kullan.';
-    }
-
-    showInAppBanner(
-      title: 'Scoutiq Test',
-      body: 'Telefon bildirimleri açık. Gerçek push da böyle görünür.',
-    );
-
-    try {
-      await BackendApi.sendTestNotification();
-      return 'Test bildirimi gönderildi (banner + sunucu kaydı).';
-    } catch (e) {
-      debugPrint('[FCM] test notification backend: $e');
-      return 'Banner gösterildi; sunucu testi başarısız: $e';
-    }
-  }
-
   static Future<void> _openSystemNotificationSettings() async {
     if (kIsWeb) return;
     try {
