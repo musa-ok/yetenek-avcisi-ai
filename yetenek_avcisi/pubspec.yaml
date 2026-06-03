@@ -72,6 +72,10 @@ dependencies:
   flutter_svg: ^2.0.17
   connectivity_plus: ^6.1.4
 
+dependency_overrides:
+  # path_provider_foundation 2.6.0 → objective_c native asset; App Store simulator slice reddi (ITMS-90291).
+  path_provider_foundation: 2.5.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
